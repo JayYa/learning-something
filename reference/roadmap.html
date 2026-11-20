@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TypeScript 学习路线：做 AI 代码的审阅者</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Reference · 学习路线</p>
+<h1>TypeScript：做 AI 代码的审阅者</h1>
+<p class="subtitle">以 Matt Pocock《TypeScript Pro Essentials》的 17 个章节为骨架，按"读懂 → 挑错 → 提意见"重排为 7 个阶段。</p>
+
+<h2>设计思路</h2>
+<p>原课程面向"要自己写 TS 的 JS 开发者"，顺序按语言特性展开。你的目标不同：<strong>读懂并审阅 AI 写的代码</strong>。所以重排的原则有三条：</p>
+<ol>
+  <li><strong>先学出现频率最高的。</strong>AI 代码里最常见的是基础注解、对象类型、联合类型，这些排在前面。</li>
+  <li><strong>把"红旗"单独成阶段。</strong><code>any</code>、<code>as</code>、<code>!</code>、过宽的类型，是 AI 最常用来"让报错消失"的手段，也是你最该会挑的毛病。原课程把它们分散在后面几章，这里提前到第 3 阶段。</li>
+  <li><strong>借用 C# 经验，但盯住差异。</strong>类、接口、泛型、async 你在 C# 里都用过，这些快速过。真正要花时间的是 C# 直觉会出错的地方：类型在运行时会被擦除；类型兼容看结构，不看名字；类型错误默认不会阻止产出代码。每课都有一个"C# 对照"框。</li>
+</ol>
+<p>你 JS 不熟，所以第 0 阶段之后插入一个短的 <strong>0.5 阶段：JS 速通</strong>。TS 的运行时行为完全是 JS 的，读 AI 代码时很多困惑其实来自 JS 而不是 TS。</p>
+<p>每个阶段结束时有一次<strong>审查练习</strong>：我给你一段"AI 风格"的代码，里面埋了问题，你来写审查意见。这是这条路线和普通教程最大的不同。</p>
+
+<h2>七个阶段</h2>
+
+<div class="phase">
+  <div class="phase-head"><span class="phase-num">0</span><span class="phase-title">定向：TypeScript 在哪里起作用</span></div>
+  <div class="phase-body">
+    <p class="chapters"><span>005 Kickstart Your TypeScript Setup</span><span>010 TypeScript in the Build Process</span><span>016.5 IDE Superpowers</span></p>
+    <p>类型只在编译期存在，运行时会被擦除。<code>tsc</code>、Vite、<code>tsx</code> 各自扮演什么角色。最重要的一件事：<strong>编辑器悬停（hover）是读代码最强的工具</strong>，读不懂的类型先悬停看看。</p>
+    <ul class="review"><li>审查能力：能判断"这个项目到底有没有在做类型检查"，比如 CI 里有没有跑 <code>tsc</code>。</li></ul>
+    <p class="small">第一课：<a href="../lessons/0001-types-vanish-at-runtime.html">0001 · 类型只活在编译期</a></p>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="phase-head"><span class="phase-num">0.5</span><span class="phase-title">JS 速通（C# 对照版）</span></div>
+  <div class="phase-body">
+    <p class="chapters"><span>不在原课程内 · 依据 MDN JavaScript 指南</span></p>
+    <p>对象字面量、解构与展开（<code>...</code>）、数组方法 <code>map</code> / <code>filter</code> / <code>reduce</code>（对应 LINQ）、真值与假值、<code>==</code> 和 <code>===</code>、<code>Promise</code> 与 <code>async</code>（对应 <code>Task</code>）、<code>import</code> / <code>export</code>、<code>this</code> 的陷阱。</p>
+    <ul class="review"><li>审查能力：看到 AI 写的 <code>a?.b ?? c</code>、<code>{ ...x, y }</code> 这类写法，能马上读出意思。</li></ul>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="phase-head"><span class="phase-num">1</span><span class="phase-title">读懂日常注解</span></div>
+  <div class="phase-body">
+    <p class="chapters"><span>015 Essential Types and Annotations</span><span>020 Objects</span></p>
+    <p>基础类型、可选参数、数组、元组、函数类型、<code>async</code> 函数。对象类型：<code>type</code> 与 <code>interface</code>、交叉类型、索引签名、<code>Record</code>，以及工具类型 <code>Pick</code> / <code>Omit</code> / <code>Partial</code>。</p>
+    <ul class="review"><li>审查能力：看到一个函数签名，能复述它接受什么、返回什么、哪些可以不传。</li></ul>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="phase-head"><span class="phase-num">2</span><span class="phase-title">联合与收窄：AI 怎样给"多种可能"建模</span></div>
+  <div class="phase-body">
+    <p class="chapters"><span>018 Unions and Narrowing</span></p>
+    <p>联合类型、字面量类型、用 <code>if</code> / <code>in</code> / <code>instanceof</code> 收窄、<code>unknown</code> 与 <code>never</code>、类型守卫，以及重点：<strong>可辨识联合</strong>（discriminated union）。</p>
+    <ul class="review"><li>审查能力：发现"一堆可选字段"这种松散建模，建议改成可辨识联合；发现 <code>switch</code> 漏掉分支。</li></ul>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="phase-head"><span class="phase-num">3</span><span class="phase-title">审查红旗：AI 在哪里绕过了类型系统</span></div>
+  <div class="phase-body">
+    <p class="chapters"><span>045 Annotations and Assertions</span><span>028 Mutability</span><span>050 The Weird Parts</span></p>
+    <p><code>as</code>、<code>as any</code>、非空断言 <code>!</code>、<code>satisfies</code>；什么时候不该写注解。<code>as const</code>、<code>readonly</code>。以及那些"看着对其实不对"的地方：空对象类型 <code>{}</code>、多余属性检查、遍历对象的键。</p>
+    <ul class="review"><li>审查能力：<strong>这是整条路线的核心。</strong>能逐个指出断言的风险，并给出不用断言的替代写法。</li></ul>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="phase-head"><span class="phase-num">4</span><span class="phase-title">从值推导类型 · 熟悉的领域</span></div>
+  <div class="phase-body">
+    <p class="chapters"><span>040 Deriving Types From Values</span><span>030 Classes</span><span>032 TypeScript-Only Features</span></p>
+    <p><code>keyof</code>、<code>typeof</code>、索引访问类型、<code>ReturnType</code> / <code>Parameters</code> / <code>Awaited</code>：让类型跟着代码自动变化，而不是手抄一份。类与 <code>enum</code> 快速过，只看 TS 的特殊点，以及为什么常被建议改用 ES 原生写法。</p>
+    <ul class="review"><li>审查能力：发现"同一个结构手写了两遍类型"的重复，建议改成从值推导。</li></ul>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="phase-head"><span class="phase-num">5</span><span class="phase-title">项目层面：配置与外部类型</span></div>
+  <div class="phase-body">
+    <p class="chapters"><span>080 Configuring TypeScript</span><span>060 Modules, Scripts and Declaration Files</span><span>065 Types You Don't Control</span></p>
+    <p>读懂 <code>tsconfig.json</code>：<code>strict</code>、<code>noUncheckedIndexedAccess</code>、<code>verbatimModuleSyntax</code>、<code>skipLibCheck</code>。<code>.d.ts</code> 声明文件、<code>@types/*</code>、<code>declare module</code>、给 <code>process.env</code> 加类型。</p>
+    <ul class="review"><li>审查能力：看出 AI 是否靠放宽配置（关掉 <code>strict</code>、乱加 <code>declare</code>）来消除报错。</li></ul>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="phase-head"><span class="phase-num">6</span><span class="phase-title">泛型与类型设计：读懂"高级"代码</span></div>
+  <div class="phase-body">
+    <p class="chapters"><span>083 Designing Your Types</span><span>085 The Utils Folder</span></p>
+    <p>泛型类型、类型参数约束与默认值、模板字面量类型、映射类型；泛型函数与类型推断、类型谓词、断言函数、函数重载。</p>
+    <ul class="review"><li>审查能力：能读懂库的类型签名和 AI 写的 <code>utils/</code>，判断一个泛型是"必要的抽象"还是"过度设计"。</li></ul>
+  </div>
+</div>
+
+<h2>节奏与形式</h2>
+<table>
+  <tr><th>单元</th><th>内容</th><th>时长</th></tr>
+  <tr><td>一课</td><td>一个很窄的知识点 + 即时反馈的小测或审查题</td><td>15–25 分钟</td></tr>
+  <tr><td>一个阶段</td><td>3–6 课 + 1 次审查练习（我出题，你写意见，我点评）</td><td>约 1–2 周</td></tr>
+  <tr><td>间隔复习</td><td>每课开头混入 1–2 道前面阶段的题</td><td>2–3 分钟</td></tr>
+</table>
+<p class="small muted">你的时间不固定，所以每课都能独立完成，中途停下也不影响后面。</p>
+
+<h2>资料</h2>
+<ul>
+  <li><a href="https://www.totaltypescript.com/books/total-typescript-essentials">Total TypeScript Essentials（免费在线书）</a>：与课程同作者、同结构，每课的首选阅读。</li>
+  <li><a href="https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes-oop.html">TypeScript for Java/C# Programmers</a>：官方写给 C# 开发者的对照入门，第 0 阶段必读。</li>
+  <li><a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Guide">MDN JavaScript 指南（中文）</a>：0.5 阶段用。</li>
+  <li><a href="https://github.com/total-typescript/pro-essentials-workshop">pro-essentials-workshop 仓库</a>：课程的公开练习题，章节编号与上表一致。</li>
+  <li><a href="https://www.typescriptlang.org/docs/handbook/intro.html">TypeScript Handbook</a>：官方手册，核实定义时用。</li>
+  <li><a href="https://www.typescriptlang.org/play">TypeScript Playground</a>：不用安装，在浏览器里验证想法。</li>
+</ul>
+
+<div class="callout ask">任何一步看不懂、觉得顺序不合适，或者想跳过某个阶段，直接问我。我是你的老师，路线可以随时调整。</div>
+
+<footer>完整工作区说明见仓库根目录的 MISSION.md、RESOURCES.md。课程列表来源：<a href="https://www.totaltypescript.com/workshops/typescript-pro-essentials">totaltypescript.com</a> 与其公开练习仓库。</footer>
+</main>
+</body>
+</html>

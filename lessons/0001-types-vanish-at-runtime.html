@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0001 · 类型只活在编译期</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">第 0 阶段 · 第 1 课 · 约 15 分钟</p>
+<h1>类型只活在编译期</h1>
+<p class="subtitle">学完这课你会知道：一段 TS 代码"能跑"，不代表它"类型正确"。审查 AI 写的项目时，要先问的就是这一点。</p>
+
+<h2>一个 5 分钟的实验</h2>
+<p>你本机的 Node 是 v26，可以直接运行 <code>.ts</code> 文件。找一个空目录，跟着做：</p>
+
+<ol class="steps">
+  <li>新建 <code>hello.ts</code>，内容如下。注意最后一行故意把字符串 <code>"1"</code> 传给了要求 <code>number</code> 的参数：
+<pre><code>function add(a: number, b: number): number {
+  return a + b;
+}
+
+console.log(add(1, 2));
+console.log(add("1", 2));</code></pre>
+  </li>
+  <li>
+    <div class="predict">运行之前，先在纸上写下你的预测：<code>node hello.ts</code> 会报错，还是会打印结果？如果打印，打印什么？</div>
+    然后运行：
+<pre><code>node hello.ts</code></pre>
+  </li>
+  <li>再用 TypeScript 编译器检查一次（第一次运行会自动下载 <code>typescript</code> 包）：
+<pre><code>npx -p typescript tsc --noEmit hello.ts</code></pre>
+  </li>
+</ol>
+
+<p>我在你这台机器上跑过，结果是：</p>
+<pre><code>&gt; node hello.ts
+3
+12
+
+&gt; npx -p typescript tsc --noEmit hello.ts
+hello.ts(6,17): error TS2345: Argument of type 'string' is not
+assignable to parameter of type 'number'.</code></pre>
+
+<p>同一个文件，Node 照常运行，还算出了一个错误的结果 <code>12</code>；<code>tsc</code> 则指出第 6 行有类型错误。</p>
+
+<h2>为什么会这样</h2>
+
+<p><strong>Node 只删除类型，不检查类型。</strong>Node 运行 <code>.ts</code> 文件时，会把类型注解替换成空白，剩下的就是普通 JavaScript，然后直接执行。官方文档原话是 "no type checking is performed"。<a href="https://nodejs.org/api/typescript.html">[Node.js 文档]</a></p>
+
+<p><strong>做类型检查的只有 <code>tsc</code>（以及编辑器里的 TS 语言服务）。</strong>而且就算 <code>tsc</code> 发现了错误，默认也照样输出 <code>.js</code> 文件，只是退出码不为 0。想让它出错时不输出，要专门打开 <code>noEmitOnError</code> 选项。<a href="https://www.typescriptlang.org/tsconfig/noEmitOnError.html">[TSConfig: noEmitOnError]</a> 这是 TS 团队有意的设计。<a href="https://github.com/Microsoft/TypeScript/issues/7602">[TypeScript #7602]</a></p>
+
+<p><strong>结果 <code>12</code> 是 JavaScript 的规则。</strong><code>+</code> 的两边只要有一个是字符串，就会做字符串拼接。<a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/Addition">[MDN: 加法]</a> 类型被删掉以后，运行时只剩下 JS 的语义。</p>
+
+<div class="compare">
+  <p style="margin:0 0 .5rem">在 C# 里，类型错误就是编译错误，没有程序集，程序就跑不起来。类型在运行时也一直存在，可以用 <code>typeof(T)</code>、<code>GetType()</code> 做反射。</p>
+  <p style="margin:0">TS 不一样：<strong>类型检查和运行是两条互不相干的路</strong>，运行时也没有任何类型信息。官方的 C# 对照文档专门提醒过这一点。<a href="https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes-oop.html#rethinking-types">[Handbook: Rethinking Types]</a></p>
+</div>
+
+<h2>这对审查 AI 代码意味着什么</h2>
+<p>AI 告诉你"代码跑通了"，只能说明 JS 语义下没崩，不能说明类型正确。所以接手一个 AI 写的项目，第一个问题是：<strong>类型检查在哪一步运行？</strong>打开 <code>package.json</code>，看 <code>scripts</code> 里有没有类似 <code>tsc --noEmit</code> 的命令，以及 CI 会不会执行它。如果哪里都没有，项目里的类型就只是"注释"，没有任何东西在把关。</p>
+
+<h2>检验一下</h2>
+<p class="small muted">每题只能选一次。凭记忆作答，不要往上翻。</p>
+
+<div class="quiz" data-answer="1">
+  <p class="q">本机执行 <code>node hello.ts</code>，而 <code>hello.ts</code> 里有类型错误，会发生什么？</p>
+  <ol class="options">
+    <li>拒绝运行，打印类型错误</li>
+    <li>照常运行，不做类型检查</li>
+    <li>打印警告，然后继续运行</li>
+    <li>自动修正类型，然后运行</li>
+  </ol>
+  <div class="explain">Node 只删除类型注解、不做检查，所以代码照常执行，按 JS 语义产生结果。</div>
+</div>
+
+<div class="quiz" data-answer="2">
+  <p class="q">默认配置下，<code>tsc hello.ts</code> 发现了类型错误。结果是？</p>
+  <ol class="options">
+    <li>不会产出 JS，退出码为 0</li>
+    <li>照样产出 JS，退出码为 0</li>
+    <li>照样产出 JS，退出码非 0</li>
+    <li>不会产出 JS，退出码非 0</li>
+  </ol>
+  <div class="explain">默认仍然输出 <code>.js</code>，但退出码非 0，CI 可以据此判定失败。打开 <code>noEmitOnError</code> 后才会不输出。</div>
+</div>
+
+<div class="quiz" data-answer="0">
+  <p class="q">写一个泛型函数 <code>function f&lt;T&gt;(x: T)</code>。在函数体里，能像 C# 的 <code>typeof(T)</code> 那样拿到 <code>T</code> 是什么类型吗？</p>
+  <ol class="options">
+    <li>不能，T 在运行时已被擦除</li>
+    <li>可以，写法与 C# 完全相同</li>
+    <li>可以，但需要先开启反射</li>
+    <li>不能，泛型函数无法编译</li>
+  </ol>
+  <div class="explain">类型（包括泛型参数）在编译后全部消失，运行时没有 <code>T</code> 可查。要在运行时判断，只能检查值本身，这是第 2 阶段"收窄"要讲的内容。</div>
+</div>
+
+<div class="quiz" data-answer="3">
+  <p class="q">AI 交给你一个项目，<code>package.json</code> 的 <code>scripts</code> 里只有 <code>"start": "node src/index.ts"</code>。你最该追问哪一点？</p>
+  <ol class="options">
+    <li>Node 版本是不是最新的</li>
+    <li>为什么不直接写成 JS</li>
+    <li>代码格式化是否统一了</li>
+    <li>类型检查到底在哪里跑</li>
+  </ol>
+  <div class="explain"><code>node</code> 不做类型检查。如果 <code>scripts</code> 和 CI 里都没有 <code>tsc</code>，类型错误永远不会被发现。</div>
+</div>
+
+<div id="quiz-score"></div>
+
+<h2>延伸阅读</h2>
+<div class="callout source"><a href="https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes-oop.html">TypeScript for Java/C# Programmers</a>（官方手册，约 10 分钟）。专为你这样的 C# 开发者写的，重点读 "Rethinking Types" 一节。</div>
+<p class="small">想看更完整的工具链讲解，可以读免费书的 <a href="https://www.totaltypescript.com/books/total-typescript-essentials/typescript-in-the-development-pipeline">TypeScript in the Development Pipeline</a> 一章。</p>
+
+<p class="small">本课要点已收进速查表：<a href="../reference/csharp-to-ts.html">C# → TypeScript 速查</a>。整体路线见 <a href="../reference/roadmap.html">学习路线</a>。</p>
+
+<div class="callout ask">实验结果和我说的不一样？对哪句话有疑问？或者想知道 <code>tsc</code> 和 Vite 这类工具是怎么配合的？直接在对话里问我。</div>
+
+<nav class="lesson-nav"><span><a href="../reference/roadmap.html">← 学习路线</a></span><span class="muted">下一课：编辑器悬停，读代码最强的工具</span></nav>
+
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
