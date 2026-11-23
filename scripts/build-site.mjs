@@ -81,7 +81,7 @@ const index = `<!doctype html>
   <main>
     <p class="kicker">TypeScript · AI 代码审阅笔记</p>
     <h1>TypeScript 学习目录</h1>
-    <p class="subtitle">面向 C# 开发者的 TypeScript 学习记录：每课 15–20 分钟，以读懂、挑错、给 AI 提修改意见为核心。</p>
+    <p class="subtitle">面向 C# 开发者的 TypeScript 学习记录：从底层设计原因出发，建立读懂、挑错、给 AI 下达精确修改指令的审阅方法论。</p>
 
     <h2>课程</h2>
     <div class="card-grid">

@@ -682,6 +682,114 @@ ol.steps > li { margin: 1rem 0; }
   margin-bottom: .25rem;
 }
 
+/* 方法论原则框（跨课复用） */
+.principle {
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--ink);
+  border-radius: 0 6px 6px 0;
+  background: var(--surface-alt);
+  padding: .95rem 1.2rem;
+  margin: 1.5rem 0;
+  font-family: var(--sans);
+  font-size: .95rem;
+  line-height: 1.7;
+}
+.principle-label {
+  display: block;
+  font-size: .76rem;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: .3rem;
+}
+.principle-title {
+  margin: 0 0 .45rem;
+  font-size: 1.04rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.principle p { margin: 0 0 .5rem; }
+.principle p:last-child { margin-bottom: 0; }
+
+/* 双栏结构对照图（如管道对照、架构对照） */
+.pipe-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.4rem 0;
+  font-family: var(--sans);
+}
+.pipe-card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 1rem 1.15rem;
+  font-size: .92rem;
+  line-height: 1.65;
+}
+.pipe-card.is-accent {
+  border-top: 3px solid var(--accent);
+}
+.pipe-card.is-muted {
+  border-top: 3px solid var(--muted);
+}
+.pipe-head {
+  font-weight: 700;
+  font-size: .96rem;
+  color: var(--ink);
+  margin: 0 0 .45rem;
+}
+.pipe-flow {
+  font-family: var(--mono);
+  font-size: .82rem;
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: .55rem .75rem;
+  margin: .5rem 0 .7rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.pipe-card p { margin: 0 0 .45rem; }
+.pipe-card p:last-child { margin-bottom: 0; }
+
+/* AI 代码审阅实战框（跨课复用） */
+.review-case {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 1.1rem 1.25rem;
+  margin: 1.6rem 0;
+}
+.review-case-head {
+  font-family: var(--sans);
+  font-size: .8rem;
+  letter-spacing: .08em;
+  color: var(--accent);
+  font-weight: 700;
+  margin: 0 0 .45rem;
+}
+.review-prompt {
+  margin: 1rem 0 0;
+  padding: .75rem 1rem;
+  border-left: 3px solid var(--ok);
+  background: var(--ok-soft);
+  border-radius: 0 4px 4px 0;
+  font-family: var(--sans);
+  font-size: .92rem;
+  line-height: 1.65;
+}
+.review-prompt::before {
+  content: "可直接发给 AI 的审阅指令";
+  display: block;
+  font-size: .76rem;
+  letter-spacing: .06em;
+  color: var(--ok);
+  font-weight: 700;
+  margin-bottom: .25rem;
+}
+
 .lesson-nav {
   display: flex;
   justify-content: space-between;
@@ -712,6 +820,7 @@ footer {
   h1 { font-size: 1.65rem; }
   .phase-body { margin-left: 0; margin-top: .35rem; }
   .quiz { padding: .9rem 1rem; }
+  .pipe-grid { grid-template-columns: 1fr; }
 }
 
 /* 打印样式 */
@@ -733,7 +842,7 @@ footer {
   a { color: #000; }
   main a[href^="http"]::after { content: none; }
   h2 { break-after: avoid; }
-  .phase, pre, .code-block, table, .compare, .callout, .quiz { break-inside: avoid; }
+  .phase, pre, .code-block, table, .compare, .callout, .quiz, .principle, .pipe-card, .review-case { break-inside: avoid; }
   thead { display: table-header-group; }
   .site-header, .page-toc, .filter-bar, .code-copy, .lesson-nav, .no-print { display: none !important; }
 }

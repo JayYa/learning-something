@@ -23,15 +23,15 @@
 <div class="page-shell has-toc">
 <main>
 
-<p class="kicker">第 0 阶段 · 第 1 课 · 约 15 分钟</p>
+<p class="kicker">第 0 阶段 · 第 1 课 · 约 35 分钟（可分段读完）</p>
 <h1>类型只活在编译期</h1>
-<p class="subtitle">学完这课你会知道：一段 TS 代码"能跑"，不代表它"类型正确"。审查 AI 写的项目时，要先问的就是这一点。</p>
+<p class="subtitle">为什么一段 TypeScript 代码"能跑通"，却可能是错的？这课从语言设计与工具链的底层架构讲起，帮你建立审阅 AI 代码的第一套方法论：先查验证门禁，再看运行时边界，最后才看实现细节。</p>
 
-<h2>一个 5 分钟的实验</h2>
-<p>你本机的 Node 是 v26，可以直接运行 <code>.ts</code> 文件。找一个空目录，跟着做：</p>
+<h2>一、一个暴露真相的实验</h2>
+<p>你本机的 Node 是 v26，原生支持直接运行 <code>.ts</code> 文件。在讲任何理论之前，先用 5 分钟亲眼看一遍 TypeScript 的"分裂现场"——这个现象决定了你以后审阅所有 TS 项目时的第一直觉。</p>
 
 <ol class="steps">
-  <li>新建 <code>hello.ts</code>，内容如下。注意第 6 行故意把字符串 <code>"1"</code> 传给了要求 <code>number</code> 的参数：
+  <li>找一个空目录，新建 <code>hello.ts</code>。注意第 6 行故意把字符串 <code>"1"</code> 传给了要求 <code>number</code> 的参数：
     <div class="code-block" data-lines data-error-line="6">
       <div class="code-head"><span class="code-label">hello.ts</span></div>
       <pre><code>function add(a: number, b: number): number {
@@ -43,23 +43,21 @@ console.log(add("1", 2));</code></pre>
     </div>
   </li>
   <li>
-    <div class="predict">运行之前，先在纸上写下你的预测：<code>node hello.ts</code> 会报错，还是会打印结果？如果打印，打印什么？</div>
-    然后运行：
+    <div class="predict">运行之前，先停 10 秒写下两个预测：<br>
+    ① <code>node hello.ts</code> 会报错拒绝运行，还是会打印结果？如果打印，第 2 行输出什么？<br>
+    ② 不加 <code>--noEmit</code> 直接运行 <code>npx -p typescript tsc hello.ts</code>，目录里会不会多出一个 <code>hello.js</code>？</div>
+    然后依次运行下面三条命令：
     <div class="code-block is-terminal">
       <div class="code-head"><span class="code-label">Terminal</span></div>
-      <pre><code>node hello.ts</code></pre>
-    </div>
-  </li>
-  <li>再用 TypeScript 编译器检查一次（第一次运行会自动下载 <code>typescript</code> 包）：
-    <div class="code-block is-terminal">
-      <div class="code-head"><span class="code-label">Terminal</span></div>
-      <pre><code>npx -p typescript tsc --noEmit hello.ts</code></pre>
+      <pre><code>node hello.ts
+npx -p typescript tsc --noEmit hello.ts
+npx -p typescript tsc hello.ts</code></pre>
     </div>
   </li>
 </ol>
 
-<p>我在你这台机器上跑过，结果是：</p>
-<div class="code-block is-terminal" data-lines data-hl-line="3" data-error-line="6,7">
+<p>你在本机看到的输出会是这样：</p>
+<div class="code-block is-terminal" data-lines data-hl-line="3" data-error-line="6,7,10,11">
   <div class="code-head"><span class="code-label">运行输出</span></div>
   <pre><code>&gt; node hello.ts
 3
@@ -67,87 +65,271 @@ console.log(add("1", 2));</code></pre>
 
 &gt; npx -p typescript tsc --noEmit hello.ts
 hello.ts(6,17): error TS2345: Argument of type 'string' is not
+assignable to parameter of type 'number'.
+
+&gt; npx -p typescript tsc hello.ts
+hello.ts(6,17): error TS2345: Argument of type 'string' is not
 assignable to parameter of type 'number'.</code></pre>
 </div>
 
-<p>同一个文件，Node 照常运行，还算出了一个错误的结果 <code>12</code>；<code>tsc</code> 则指出第 6 行有类型错误。</p>
-
-<h2>为什么会这样</h2>
-
-<p><strong>Node 只删除类型，不检查类型。</strong>Node 运行 <code>.ts</code> 文件时，会把类型注解替换成空白，剩下的就是普通 JavaScript，然后直接执行。官方文档原话是 "no type checking is performed"。<a href="https://nodejs.org/api/typescript.html">[Node.js 文档]</a></p>
-
-<p><strong>做类型检查的只有 <code>tsc</code>（以及编辑器里的 TS 语言服务）。</strong>而且就算 <code>tsc</code> 发现了错误，默认也照样输出 <code>.js</code> 文件，只是退出码不为 0。想让它出错时不输出，要专门打开 <code>noEmitOnError</code> 选项。<a href="https://www.typescriptlang.org/tsconfig/noEmitOnError.html">[TSConfig: noEmitOnError]</a> 这是 TS 团队有意的设计。<a href="https://github.com/Microsoft/TypeScript/issues/7602">[TypeScript #7602]</a></p>
-
-<p><strong>结果 <code>12</code> 是 JavaScript 的规则。</strong><code>+</code> 的两边只要有一个是字符串，就会做字符串拼接。<a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/Addition">[MDN: 加法]</a> 类型被删掉以后，运行时只剩下 JS 的语义。</p>
-
-<div class="compare">
-  <p>在 C# 里，类型错误就是编译错误，没有程序集，程序就跑不起来。类型在运行时也一直存在，可以用 <code>typeof(T)</code>、<code>GetType()</code> 做反射。</p>
-  <p>TS 不一样：<strong>类型检查和运行是两条互不相干的路</strong>，运行时也没有任何类型信息。官方的 C# 对照文档专门提醒过这一点。<a href="https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes-oop.html#rethinking-types">[Handbook: Rethinking Types]</a></p>
+<p>现在打开第三条命令产出的 <code>hello.js</code>，你会看到它竟然真的生成了，而且长这样：</p>
+<div class="code-block" data-lines>
+  <div class="code-head"><span class="code-label">hello.js（tsc 报错后仍然产出的文件）</span></div>
+  <pre><code>function add(a, b) {
+    return a + b;
+}
+console.log(add(1, 2));
+console.log(add("1", 2));</code></pre>
 </div>
 
-<h2>这对审查 AI 代码意味着什么</h2>
-<p>AI 告诉你"代码跑通了"，只能说明 JS 语义下没崩，不能说明类型正确。所以接手一个 AI 写的项目，第一个问题是：<strong>类型检查在哪一步运行？</strong>打开 <code>package.json</code>，看 <code>scripts</code> 里有没有类似 <code>tsc --noEmit</code> 的命令，以及 CI 会不会执行它。如果哪里都没有，项目里的类型就只是"注释"，没有任何东西在把关。</p>
+<p>同一个文件，发生了三件在 C# 世界里几乎不可想象的事：</p>
+<ul>
+  <li><strong>第一，<code>node hello.ts</code> 毫无警告地跑完了</strong>，而且不是崩溃，是安静地算出了一个错误答案 <code>12</code>。</li>
+  <li><strong>第二，<code>tsc</code> 明确报了类型错误</strong>，但在默认配置下仍然把 <code>hello.js</code> 写到了磁盘上（只是进程退出码不为 0）。</li>
+  <li><strong>第三，<code>hello.js</code> 里没有任何类型的痕迹</strong>——<code>: number</code> 像注释一样人间蒸发，剩下的代码完全按 JavaScript 的规则执行（<code>+</code> 两边只要有一边是字符串，就做字符串拼接<a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/Addition">[MDN: 加法]</a>）。</li>
+</ul>
 
-<h2>检验一下</h2>
-<p class="small muted">每题只能选一次。凭记忆作答，不要往上翻。</p>
+<h2>二、底层原因：为什么 TypeScript 必须"擦除类型"</h2>
+<p>如果只把上面的现象背成几条死规则，过两周就会忘，或者换个工具（比如 Vite、Next.js、<code>tsx</code>）就又懵了。要真正吃透，必须看清背后的四个底层设计原因。</p>
+
+<h3>1. 宿命约束：TS 没有自己的虚拟机，它寄生在 JS 引擎之上</h3>
+<p>在 C# 里，语言、编译器（Roslyn）、中间语言（IL）和运行时（CLR）是一整套垂直设计的体系。你写下的类型定义会被编译进程序集的元数据表，CLR 在运行时真的认识每一个类型——所以泛型参数可以保留到运行时（reified generics），<code>typeof(T)</code>、<code>GetType()</code> 和反射都顺理成章。</p>
+
+<p>TypeScript 从诞生第一天起就不具备这个前提。它必须跑在现有的浏览器（V8、SpiderMonkey、JavaScriptCore）和 Node.js 上，<strong>不能要求全世界的 JS 引擎为它改架构，也不能给运行时增加额外开销</strong>。因此它选择了<strong>类型擦除（type erasure）</strong>：所有类型注解、<code>interface</code>、<code>type</code> 别名、泛型参数，全部只用于编译期静态分析，运行前统统剥离。<a href="https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes-oop.html#rethinking-types">[Handbook: Rethinking Types]</a></p>
+
+<div class="pipe-grid">
+  <div class="pipe-card is-muted">
+    <p class="pipe-head">C#：单一耦合管道</p>
+    <div class="pipe-flow">.cs 源码
+  ↓ Roslyn（类型检查 + 生成 IL 强绑定）
+IL + 类型元数据（类型错误则无产物）
+  ↓ CLR（运行时认识类型、支持反射）
+执行结果</div>
+    <p><strong>结论：</strong>"能编出来并跑起来"几乎等价于"通过了类型检查"，而且运行时依然能依赖类型元数据。</p>
+  </div>
+  <div class="pipe-card is-accent">
+    <p class="pipe-head">TypeScript：两条独立管道</p>
+    <div class="pipe-flow">管道 A（验证）：.ts → tsc --noEmit → 报错 / 退出码
+管道 B（执行）：.ts → 剥离类型 → 纯 .js → JS 引擎</div>
+    <p><strong>结论：</strong>验证和执行默认是解耦的。管道 B 跑通，对管道 A 是否通过没有任何证明力。</p>
+  </div>
+</div>
+
+<h3>2. 语言铁律：类型系统绝不改变运行时行为</h3>
+<p>TypeScript 官方的《设计目标》里写着一条极其关键的<strong>非目标（Non-Goal）</strong>："不向程序添加或依赖运行时类型信息，也不根据类型系统的分析结果输出不同的运行时代码"（<em>never emit different code based on the results of the type system</em>）。<a href="https://github.com/microsoft/TypeScript/wiki/TypeScript-Design-Goals">[TypeScript Design Goals]</a></p>
+
+<p>为什么要定下这么"克制"的铁律？背后有两个非常务实的工程原因：</p>
+<ul>
+  <li><strong>可预测性：</strong>开发者看着一行 TS 代码，只要在脑中把类型注解划掉，就能百分之百确定它在 JS 引擎里会怎么跑。你永远不用担心"编译器是不是根据某个隐晦的类型推导，偷偷帮我改写了运行时逻辑"。</li>
+  <li><strong>支持单文件极速转译：</strong>正因为输出 JS 不依赖跨文件的全局类型推导，外部工具才能只看单个文件的语法就把类型剥掉，不需要运行完整的类型检查器。</li>
+</ul>
+
+<p>这条铁律也顺带解释了 C# 开发者最容易困惑的几个"为什么 TS 做不到"：TS 不能像 C# 那样按参数类型做真正的运行时方法重载，不能在泛型函数里写 <code>new T()</code> 或 <code>default(T)</code>，<code>interface</code> 在编译后占用 0 字节——因为这些全都需要类型信息参与运行时。</p>
+
+<h3>3. 历史与渐进迁移：为什么 <code>tsc</code> 报错后默认仍输出 JS？</h3>
+<p>哪怕你用的是官方编译器 <code>tsc</code>，它在发现类型错误后默认依然会吐出 <code>.js</code> 文件，只通过<strong>非零退出码</strong>通知外部失败。这是 TS 团队有意保留的设计。<a href="https://github.com/Microsoft/TypeScript/issues/7602">[TypeScript #7602]</a></p>
+
+<p>底层原因在于 TS 的核心定位是<strong>渐进式类型系统（gradual typing）</strong>：大量团队是把存量 JS 项目一点点改成 TS 的。如果一个文件里还有三处复杂类型没标好，编译器就彻底拒绝生成 JS，开发者连本地调试和跑单元测试都会被卡死。于是 TS 把"报错"和"阻止产出"拆开了——只有当你显式打开 <code>noEmitOnError: true</code> 时，它才会在出错时不产出文件。<a href="https://www.typescriptlang.org/tsconfig/noEmitOnError.html">[TSConfig: noEmitOnError]</a></p>
+
+<h3>4. 现代工具链的架构分工：为什么 Node、Vite、esbuild 都"不检查类型"？</h3>
+<p>明白了前两条，你就能瞬间看穿整个现代前端与 Node 工具链的分工逻辑。把 TS 变成可执行的 JS，和检查 TS 的类型是否正确，其实是<strong>复杂度完全不同的两件事</strong>：</p>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th>角色</th><th>典型工具</th><th>工作方式</th><th>时间复杂度与速度</th><th>做类型检查吗</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>类型剥离 / 转译器</strong></td>
+      <td><code>node file.ts</code>、Vite（esbuild）、SWC、Babel、<code>tsx</code></td>
+      <td>逐文件扫描语法树，把类型注解删掉或换成空白</td>
+      <td>单文件线性处理，毫秒级</td>
+      <td><strong>不做</strong></td>
+    </tr>
+    <tr>
+      <td><strong>静态类型检查器</strong></td>
+      <td><code>tsc --noEmit</code>、IDE 内置 TS 语言服务</td>
+      <td>读取 <code>tsconfig.json</code>，构建全项目模块依赖图与类型关系</td>
+      <td>全项目分析，秒级到数十秒</td>
+      <td><strong>做</strong></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>以你本机的 Node.js 为例：Node 运行 <code>.ts</code> 时采用的是<strong>类型剥离（type stripping）</strong>——把类型注解替换成等长的空白字符（这样甚至不需要 source map，报错堆栈的行号也能和源码严丝合缝），官方文档明言 <em>"no type checking is performed"</em>。<a href="https://nodejs.org/api/typescript.html">[Node.js: TypeScript]</a> 同理，Vite 官方文档也专门强调：<em>"Vite only performs transpilation on <code>.ts</code> files and does NOT perform type checking."</em><a href="https://vite.dev/guide/features.html#typescript">[Vite: TypeScript]</a></p>
+
+<p class="small muted">顺带一提：正因为 Node 只做纯粹的空白替换，像 <code>enum</code>、<code>namespace</code> 这种需要生成额外 JS 代码的 TS 专属语法，在默认 type stripping 模式下反而是不支持的。这也是为什么新版 TypeScript 专门引入了 <code>erasableSyntaxOnly</code> 选项，用来把项目限制在"纯可擦除语法"之内。<a href="https://www.typescriptlang.org/tsconfig/erasableSyntaxOnly.html">[TSConfig: erasableSyntaxOnly]</a></p>
+
+<h3>5. 必须拆开的两套概念：TS 静态类型 ≠ JS 运行时类型</h3>
+<p>C# 开发者最容易混淆的一点是把"类型"当成一个整体。在 TS 项目里，你脑子里必须把<strong>两套完全不同的类型</strong>分开存放：</p>
+<ul>
+  <li><strong>TS 静态类型（编译期契约）：</strong>附着在<strong>变量、参数、表达式</strong>上（例如 <code>a: number</code>、<code>User</code>、<code>Promise&lt;Order&gt;</code>）。它用来在代码运行前推理"这里可能出现什么值"，运行前全部消失。</li>
+  <li><strong>JS 运行时类型（内存里的真实标签）：</strong>附着在<strong>具体的值</strong>上（例如 <code>typeof x === "string"</code>、<code>Array.isArray(x)</code>、<code>x instanceof Error</code>）。它永远存在，由 JS 引擎在运行时维护，但它根本不知道你当初给变量写过什么 TS 接口。</li>
+</ul>
+
+<div class="compare">
+  <p><strong>C# 的心智模型：</strong>编译期类型和运行时类型是同一张图纸的两面。<code>string s</code> 编译期是字符串，运行时 CLR 也保证它只能是字符串或 <code>null</code>；反序列化 <code>JsonSerializer.Deserialize&lt;User&gt;(json)</code> 会读取 <code>User</code> 的运行时元数据，按字段类型真正构造出对象。</p>
+  <p><strong>TS 的心智模型：</strong>TS 类型只是编译期的"设计蓝图"，运行前就会被收走；JS 引擎只按内存里实际流进来的值干活。一旦你绕过了静态检查，或者数据从外部流进系统，变量名上贴着 <code>: number</code> 却装着一个字符串 <code>"1"</code>，在运行时完全合法，JS 引擎连眉头都不会皱一下。</p>
+</div>
+
+<h2>三、方法论：用"双管道模型"审阅 AI 代码</h2>
+<p>理解了底层原因，我们把它们沉淀成<strong>三条可迁移的审阅方法论</strong>。以后无论 AI 给你写的是前端页面、Node 后端服务，还是自动化脚本，这套检查顺序都通用。</p>
+
+<div class="principle">
+  <span class="principle-label">方法论原则 1 · Pipeline-First Review</span>
+  <p class="principle-title">先查门禁，再看代码：永远不要拿"跑通了"当"类型正确"</p>
+  <p>因为执行管道和验证管道是分离的，AI 告诉你"我跑了 <code>node src/index.ts</code> / <code>npm run build</code>，一切正常"，只证明 JS 语义下当前那条路径没崩，<strong>完全不能证明类型检查通过</strong>。</p>
+  <p><strong>审阅动作：</strong>接手 AI 写的任何 TS 项目，先别急着读业务逻辑，第一眼先查三处：① <code>package.json</code> 的 <code>scripts</code> 里有没有独立的 <code>typecheck</code>（如 <code>tsc --noEmit</code>）；② <code>build</code> 命令是不是只跑了 <code>vite build</code> / <code>esbuild</code> 而漏掉了 <code>tsc</code>；③ CI 或提交前检查有没有真正执行类型检查并把非零退出码当作失败。没有门禁的项目，里面的所有类型注解都只是"随时可能过期的注释"。</p>
+</div>
+
+<div class="principle">
+  <span class="principle-label">方法论原则 2 · Static Interior, Validated Boundary</span>
+  <p class="principle-title">静态类型只守内部，所有运行时边界必须做运行时校验</p>
+  <p>既然 TS 类型在运行前归零，编译器能守住的<strong>只有程序内部</strong>——也就是从你自己的代码里创建并传递的值。凡是跨越<strong>运行时边界</strong>从外部进来的数据——HTTP 接口返回值（<code>await res.json()</code>）、<code>JSON.parse()</code>、环境变量 <code>process.env</code>、本地配置文件、用户输入——在编译期根本不存在，TS 不可能知道它们运行时的真实长相。</p>
+  <p><strong>AI 最常见的坏习惯：</strong>在边界处直接写 <code>const user: User = await res.json()</code> 或 <code>JSON.parse(raw) as Config</code>。这看起来很像 C# 的强类型反序列化，实际上<strong>只是对编译器说"闭上眼睛相信我"</strong>，运行时零校验。</p>
+  <p><strong>审阅动作：</strong>看到数据跨过外部边界，立刻问一句：<em>"如果上游少传了一个字段，或者把数字传成了字符串，这段代码会在入口处立刻报错，还是会把脏数据放进系统内部？"</em> 答案如果是后者，就该要求 AI 在边界补上运行时检查（或使用校验库如 Zod，后续阶段会细讲）。</p>
+</div>
+
+<div class="principle">
+  <span class="principle-label">方法论原则 3 · Silent Corruption &gt; Crash</span>
+  <p class="principle-title">最危险的不是崩溃，是 JS 弱类型导致的"静默错算"</p>
+  <p>在实验里，<code>add("1", 2)</code> 没有抛异常，而是算出了 <code>12</code>。这就是 JavaScript 隐式类型转换最阴险的地方：脏数据进来后，程序往往<strong>照跑不误</strong>，直到把错误金额写进数据库、把 <code>"NaN"</code> 展示给用户才暴露。</p>
+  <p><strong>审阅动作：</strong>当 AI 试图用"我写了个测试跑通了"来打消你对类型报错的顾虑时，坚持你的判断：测试只能证明<strong>测到的那几组输入</strong>没出事；只有静态类型检查 + 边界运行时校验，才能守住没测到的分支和异常输入。</p>
+</div>
+
+<h2>四、实战演练：按方法论审阅一段 AI 代码</h2>
+<p>假设你让 AI 写一个小脚本，从外部 JSON 字符串解析订单并计算总价。AI 交给你下面两个文件，并自信地回复："已用 <code>node calc.ts</code> 测试通过，输出正常。"</p>
+
+<div class="review-case">
+  <p class="review-case-head">待审阅的 AI 交付物</p>
+  <div class="code-block" data-lines data-error-line="4,5">
+    <div class="code-head"><span class="code-label">package.json</span></div>
+    <pre><code>{
+  "name": "order-calc",
+  "scripts": {
+    "start": "node calc.ts",
+    "build": "vite build"
+  }
+}</code></pre>
+  </div>
+
+  <div class="code-block" data-lines data-error-line="7,12">
+    <div class="code-head"><span class="code-label">calc.ts</span></div>
+    <pre><code>interface Order {
+  price: number;
+  shipping: number;
+}
+
+function loadOrder(raw: string): Order {
+  return JSON.parse(raw) as Order;
+}
+
+function calcTotal(order: Order): number {
+  return order.price + order.shipping;
+}
+
+const order = loadOrder('{"price": 100, "shipping": "10"}');
+console.log(calcTotal(order)); // 运行时打印 "10010"，没有任何报错</code></pre>
+  </div>
+
+  <p><strong>按本课三条方法论逐层拆解：</strong></p>
+  <ol>
+    <li><strong>查门禁（原则 1）：</strong><code>package.json</code> 里只有 <code>node calc.ts</code> 和 <code>vite build</code>，两者都只剥离/转译、不做类型检查。这个仓库里根本没有类型门禁。</li>
+    <li><strong>查边界（原则 2）：</strong>第 7 行 <code>JSON.parse(raw) as Order</code> 跨过了运行时边界。<code>interface Order</code> 在运行前已被擦除，<code>as Order</code> 只是让编译器闭嘴，运行时完全没有检查 <code>shipping</code> 到底是不是 <code>number</code>。</li>
+    <li><strong>看后果（原则 3）：</strong>上游把 <code>shipping</code> 传成了字符串 <code>"10"</code>，代码既没在编译期报错，也没在运行时崩掉，而是静默拼出了 <code>"10010"</code>——典型的静默数据污染。</li>
+  </ol>
+
+  <div class="review-prompt">
+    "请做两处修改：① 在 <code>package.json</code> 中增加 <code>typecheck: \"tsc --noEmit\"</code>，并把 <code>build</code> 改为先跑 <code>typecheck</code> 再打包，同时附上 <code>tsc --noEmit</code> 的零报错输出；② <code>loadOrder</code> 是外部数据边界，不要用 <code>as Order</code> 直接断言，请在解析后对 <code>price</code> 和 <code>shipping</code> 做运行时类型校验（确认都是有限数字），不符合结构时显式抛出错误。"
+  </div>
+</div>
+
+<p>注意上面这条指令为什么有效：它没有泛泛地说"写严谨点"，而是直接点中了<strong>门禁缺失</strong>和<strong>边界裸断言</strong>两个底层病根，AI 立刻知道该改哪里、怎么验收。</p>
+
+<h2>五、检验一下</h2>
+<p class="small muted">每题只能选一次。凭理解与记忆作答，不要往上翻。</p>
 
 <div class="quiz" data-answer="1">
-  <p class="q">本机执行 <code>node hello.ts</code>，而 <code>hello.ts</code> 里有类型错误，会发生什么？</p>
+  <p class="q">TypeScript 为什么把"不根据类型信息改变运行时产出代码"写进设计非目标？</p>
   <ol class="options">
-    <li>拒绝运行，打印类型错误</li>
-    <li>照常运行，不做类型检查</li>
-    <li>打印警告，然后继续运行</li>
-    <li>自动修正类型，然后运行</li>
+    <li>为了强制所有项目必须开启严格检查模式</li>
+    <li>为了让擦除后保持标准且可预测的纯脚本</li>
+    <li>为了让虚拟机在运行时自动生成反射数据</li>
+    <li>为了在编译阶段自动重写所有低效的循环</li>
   </ol>
-  <div class="explain">Node 只删除类型注解、不做检查，所以代码照常执行，按 JS 语义产生结果。</div>
+  <div class="explain">不依赖类型来改写运行时行为，一方面保证把类型删掉后就是可预测的标准 JS，另一方面也让 Node、esbuild、Vite 这类工具能够做单文件极速转译，不必每次都跑全项目类型检查。</div>
 </div>
 
 <div class="quiz" data-answer="2">
-  <p class="q">默认配置下，<code>tsc hello.ts</code> 发现了类型错误。结果是？</p>
+  <p class="q">AI 交付项目里的构建命令只有 <code>"build": "vite build"</code>，且本地跑通了。这说明什么？</p>
   <ol class="options">
-    <li>不会产出 JS，退出码为 0</li>
-    <li>照样产出 JS，退出码为 0</li>
-    <li>照样产出 JS，退出码非 0</li>
-    <li>不会产出 JS，退出码非 0</li>
+    <li>说明代码已经通过全量静态类型检查</li>
+    <li>说明项目关闭了所有运行时异常捕获</li>
+    <li>只说明语法转译成功但未必检查类型</li>
+    <li>只说明依赖包完整但尚未打包出产物</li>
   </ol>
-  <div class="explain">默认仍然输出 <code>.js</code>，但退出码非 0，CI 可以据此判定失败。打开 <code>noEmitOnError</code> 后才会不输出。</div>
+  <div class="explain">Vite（底层用 esbuild）只负责转译 <code>.ts</code>，默认不做类型检查。所以 <code>vite build</code> 成功不代表类型正确，必须确认有没有独立运行 <code>tsc --noEmit</code>。</div>
 </div>
 
 <div class="quiz" data-answer="0">
-  <p class="q">写一个泛型函数 <code>function f&lt;T&gt;(x: T)</code>。在函数体里，能像 C# 的 <code>typeof(T)</code> 那样拿到 <code>T</code> 是什么类型吗？</p>
+  <p class="q">AI 写了 <code>const cfg = JSON.parse(text) as Config;</code>。与 C# 的 <code>JsonSerializer.Deserialize&lt;Config&gt;(text)</code> 相比，最关键的区别是？</p>
   <ol class="options">
-    <li>不能，T 在运行时已被擦除</li>
-    <li>可以，写法与 C# 完全相同</li>
-    <li>可以，但需要先开启反射</li>
-    <li>不能，泛型函数无法编译</li>
+    <li>不会在运行时校验字段形状，脏数据会直接流入</li>
+    <li>会在运行时自动补全缺失字段，默认值设为零值</li>
+    <li>会在运行时抛出类型转换异常，阻止程序继续跑</li>
+    <li>会在编译期读取外部文件内容，提前验证其格式</li>
   </ol>
-  <div class="explain">类型（包括泛型参数）在编译后全部消失，运行时没有 <code>T</code> 可查。要在运行时判断，只能检查值本身，这是第 2 阶段"收窄"要讲的内容。</div>
+  <div class="explain">C# 反序列化会依据运行时类型元数据校验并构造对象；TS 的 <code>Config</code> 和 <code>as Config</code> 在运行时全部被擦除，不会执行任何检查。外部数据边界必须自己做运行时校验。</div>
 </div>
 
 <div class="quiz" data-answer="3">
-  <p class="q">AI 交给你一个项目，<code>package.json</code> 的 <code>scripts</code> 里只有 <code>"start": "node src/index.ts"</code>。你最该追问哪一点？</p>
+  <p class="q">默认配置下，对有类型错误的文件运行 <code>tsc app.ts</code>，结果会怎样？</p>
   <ol class="options">
-    <li>Node 版本是不是最新的</li>
-    <li>为什么不直接写成 JS</li>
-    <li>代码格式化是否统一了</li>
-    <li>类型检查到底在哪里跑</li>
+    <li>不输出脚本文件，并且退出码为零</li>
+    <li>仍输出脚本文件，并且退出码为零</li>
+    <li>不输出脚本文件，并且退出码非零</li>
+    <li>仍输出脚本文件，并且退出码非零</li>
   </ol>
-  <div class="explain"><code>node</code> 不做类型检查。如果 <code>scripts</code> 和 CI 里都没有 <code>tsc</code>，类型错误永远不会被发现。</div>
+  <div class="explain">为了支持从 JS 渐进迁移，<code>tsc</code> 把检查和产出解耦：出错时默认仍输出 <code>.js</code>，靠非零退出码通知 CI 失败。只有开启 <code>noEmitOnError</code> 才会在出错时阻止产出。</div>
+</div>
+
+<div class="quiz" data-answer="1">
+  <p class="q">审阅泛型函数 <code>function parse&lt;T&gt;(x: unknown)</code> 时，AI 试图在函数体里通过反射读取 <code>T</code> 的字段列表。你应如何判断？</p>
+  <ol class="options">
+    <li>可以实现，只要开启实验性的反射编译选项</li>
+    <li>无法实现，泛型参数在运行前已被彻底擦除</li>
+    <li>可以实现，但必须把函数改成类方法才有效</li>
+    <li>无法实现，因为脚本引擎不支持任何泛型值</li>
+  </ol>
+  <div class="explain">TS 没有 CLR 那样的运行时泛型实体化（reification），泛型参数 <code>T</code> 只存在于编译期，运行前被彻底擦除。想在运行时校验结构，只能显式传入校验函数或 schema 对象。</div>
+</div>
+
+<div class="quiz" data-answer="2">
+  <p class="q">接手一个 AI 刚生成的 TypeScript 仓库，按本课方法论，你最应该先做哪一步？</p>
+  <ol class="options">
+    <li>逐行检查所有变量命名是否符合团队规范</li>
+    <li>先把全部接口改写成类以便做运行时反射</li>
+    <li>先查脚本与流水线里有没有跑静态检查器</li>
+    <li>直接运行主入口文件看是否抛出运行异常</li>
+  </ol>
+  <div class="explain">遵循"先查门禁，再看代码"（Pipeline-First Review）：如果 <code>package.json</code> 和 CI 里根本没跑 <code>tsc --noEmit</code>，代码里再多类型注解也没有把关机制。</div>
 </div>
 
 <div id="quiz-score"></div>
 
-<h2>延伸阅读</h2>
-<div class="callout source"><a href="https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes-oop.html">TypeScript for Java/C# Programmers</a>（官方手册，约 10 分钟）。专为你这样的 C# 开发者写的，重点读 "Rethinking Types" 一节。</div>
-<p class="small">想看更完整的工具链讲解，可以读免费书的 <a href="https://www.totaltypescript.com/books/total-typescript-essentials/typescript-in-the-development-pipeline">TypeScript in the Development Pipeline</a> 一章。</p>
+<h2>六、延伸阅读与下一步</h2>
+<div class="callout source"><a href="https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes-oop.html">TypeScript for Java/C# Programmers</a>（官方手册，约 10 分钟）。重点读 "Rethinking Types" 与 "Erased Structural Types" 两节，对照今天讲的双管道心智模型。</div>
+<p class="small">想从语言设计者视角看清为什么 TS 不做运行时类型，推荐顺手翻一翻官方的 <a href="https://github.com/microsoft/TypeScript/wiki/TypeScript-Design-Goals">TypeScript Design Goals</a>（尤其是 Non-Goals 一节，5 分钟就能读完）；工具链与构建流程的完整梳理见免费书的 <a href="https://www.totaltypescript.com/books/total-typescript-essentials/typescript-in-the-development-pipeline">TypeScript in the Development Pipeline</a>。</p>
 
-<p class="small">本课要点已收进速查表：<a href="../reference/csharp-to-ts.html">C# → TypeScript 速查</a>。整体路线见 <a href="../reference/roadmap.html">学习路线</a>。</p>
+<p class="small">本课的底层对照与审阅清单已同步收进参考页：<a href="../reference/csharp-to-ts.html">C# → TypeScript 速查</a>。整体规划见 <a href="../reference/roadmap.html">学习路线</a>。</p>
 
-<div class="callout ask">实验结果和我说的不一样？对哪句话有疑问？或者想知道 <code>tsc</code> 和 Vite 这类工具是怎么配合的？直接在对话里问我。</div>
+<div class="callout ask">实验结果和预期不一样？对"类型剥离 vs 转译 vs 检查"的分工还有模糊的地方？或者手头正有一份 AI 生成的 <code>package.json</code> 想一起做一次门禁审查？直接在对话里发给我。</div>
 
 <nav class="lesson-nav">
   <span><a href="../reference/roadmap.html">← 学习路线</a></span>
-  <span class="muted">下一课：编辑器悬停，读代码最强的工具</span>
+  <span class="muted">下一课：编辑器悬停，读懂 AI 代码最强的工具</span>
 </nav>
 
 </main>
