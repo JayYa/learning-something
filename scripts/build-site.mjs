@@ -1,4 +1,4 @@
-// 生成静态站点：复制课程、参考页和共享资源到 _site/，并生成目录页。
+// 生成 GitHub Pages 站点：复制课程、参考页和共享资源到 _site/，并生成目录页。
 // 用法：node scripts/build-site.mjs
 import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

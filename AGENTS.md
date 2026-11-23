@@ -1,6 +1,6 @@
 ## 发布站点
 
-`lessons/`、`reference/`、`assets/` 会发布到 https://learning-something.edgeone.dev/ 。push 到 `main` 后由腾讯云 EdgeOne 自动构建并发布（构建命令 `node scripts/build-site.mjs`，输出目录 `_site`）；目录页在发布时生成，仓库里不存。
+`lessons/`、`reference/`、`assets/` 会发布到 https://jayya.github.io/learning-something/ 。push 到 `main` 后由 `.github/workflows/pages.yml` 自动发布；目录页由 `scripts/build-site.mjs` 在发布时生成，仓库里不存。
 
 - 目录页的条目文字取自每页的 `<title>`。课程标题保持"编号 · 课名"的格式，例如 `0001 · 类型只活在编译期`。
 - 课程和参考页之间、以及对 `assets/` 的引用都用相对路径。
