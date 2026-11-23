@@ -12,17 +12,48 @@ mkdirSync(out);
 for (const dir of dirs) cpSync(join(root, dir), join(out, dir), { recursive: true });
 writeFileSync(join(out, ".nojekyll"), "");
 
-function entries(dir) {
+function escapeHtml(str) {
+  return str
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function stripTags(str) {
+  return str.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+}
+
+function readMeta(dir, file) {
+  const html = readFileSync(join(root, dir, file), "utf8");
+  const title = stripTags(html.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || file);
+  const kicker = stripTags(html.match(/<p[^>]*class="[^"]*\bkicker\b[^"]*"[^>]*>([\s\S]*?)<\/p>/i)?.[1] || "");
+  const subtitle = stripTags(html.match(/<p[^>]*class="[^"]*\bsubtitle\b[^"]*"[^>]*>([\s\S]*?)<\/p>/i)?.[1] || "");
+  return { file, key: file.replace(/\.html$/i, ""), title, kicker, subtitle };
+}
+
+function listPages(dir) {
   return readdirSync(join(root, dir))
     .filter((f) => f.endsWith(".html"))
     .sort()
-    .map((f) => {
-      const html = readFileSync(join(root, dir, f), "utf8");
-      const title = html.match(/<title>([\s\S]*?)<\/title>/i)?.[1].trim() || f;
-      return `  <li><a href="${dir}/${encodeURI(f)}">${title}</a></li>`;
+    .map((f) => readMeta(dir, f));
+}
+
+function renderCards(dir, pages, withLessonKey = false) {
+  return pages
+    .map((p) => {
+      const keyAttr = withLessonKey ? ` data-lesson-key="${escapeHtml(p.key)}"` : "";
+      const kickerHtml = p.kicker ? `\n        <span class="card-kicker">${escapeHtml(p.kicker)}</span>` : "";
+      const descHtml = p.subtitle ? `\n        <p class="card-desc">${escapeHtml(p.subtitle)}</p>` : "";
+      return `      <a class="card" href="${dir}/${encodeURI(p.file)}"${keyAttr}>${kickerHtml}
+        <span class="card-title">${escapeHtml(p.title)}</span>${descHtml}
+      </a>`;
     })
     .join("\n");
 }
+
+const lessons = listPages("lessons");
+const references = listPages("reference");
 
 const index = `<!doctype html>
 <html lang="zh-CN">
@@ -33,19 +64,40 @@ const index = `<!doctype html>
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
-<main>
-<h1>TypeScript 学习：目录</h1>
 
-<h2>课程</h2>
-<ul>
-${entries("lessons")}
-</ul>
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-brand" href="index.html">TS 审阅笔记</a>
+    <nav class="site-nav" aria-label="站点导航">
+      <a href="index.html" class="active">目录</a>
+      <a href="reference/roadmap.html">学习路线</a>
+      <a href="reference/csharp-to-ts.html">C# → TS 速查</a>
+    </nav>
+    <span class="header-meta">共 ${lessons.length} 课 · ${references.length} 份参考</span>
+  </div>
+</header>
 
-<h2>参考页</h2>
-<ul>
-${entries("reference")}
-</ul>
-</main>
+<div class="page-shell">
+  <main>
+    <p class="kicker">TypeScript · AI 代码审阅笔记</p>
+    <h1>TypeScript 学习目录</h1>
+    <p class="subtitle">面向 C# 开发者的 TypeScript 学习记录：每课 15–20 分钟，以读懂、挑错、给 AI 提修改意见为核心。</p>
+
+    <h2>课程</h2>
+    <div class="card-grid">
+${renderCards("lessons", lessons, true)}
+    </div>
+
+    <h2>参考页</h2>
+    <div class="card-grid">
+${renderCards("reference", references, false)}
+    </div>
+
+    <footer>静态站点由 <code>scripts/build-site.mjs</code> 自动生成。</footer>
+  </main>
+</div>
+
+<script src="assets/site.js"></script>
 </body>
 </html>
 `;

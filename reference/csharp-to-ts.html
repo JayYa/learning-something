@@ -7,35 +7,70 @@
 <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-brand" href="../index.html">TS 审阅笔记</a>
+    <nav class="site-nav" aria-label="站点导航">
+      <a href="../index.html">目录</a>
+      <a href="roadmap.html">学习路线</a>
+      <a href="csharp-to-ts.html" class="active">C# → TS 速查</a>
+    </nav>
+    <span class="header-meta">Reference · 速查表</span>
+  </div>
+</header>
+
+<div class="page-shell has-toc">
 <main>
 
 <p class="kicker">Reference · 随课程增长</p>
 <h1>C# → TypeScript 速查</h1>
 <p class="subtitle">每学完一课，就往这里补几行：C# 直觉在哪里还管用，在哪里会失效。</p>
 
+<div class="filter-bar no-print">
+  <input class="filter-input" type="search" placeholder="筛选关键字，例如 tsc、typeof、反射…" aria-label="筛选速查条目">
+  <span class="filter-count" aria-live="polite"></span>
+</div>
+
 <h2>类型与运行时</h2>
+<div class="table-wrap">
 <table>
-  <tr><th>话题</th><th>C#</th><th>TypeScript</th><th>出处</th></tr>
-  <tr><td>类型存在于</td><td>编译期和运行时（可以反射）</td><td><strong>只在编译期</strong>，运行前会被擦除</td><td><a href="../lessons/0001-types-vanish-at-runtime.html">0001</a></td></tr>
-  <tr><td>有类型错误时</td><td>编译失败，没有产物</td><td>默认<strong>照样产出 JS</strong>，退出码非 0</td><td><a href="../lessons/0001-types-vanish-at-runtime.html">0001</a></td></tr>
-  <tr><td>运行时语义</td><td>由 .NET 决定</td><td>完全是 JavaScript 的规则（例如 <code>"1" + 2</code> 得到 <code>"12"</code>）</td><td><a href="../lessons/0001-types-vanish-at-runtime.html">0001</a></td></tr>
-  <tr><td><code>typeof(T)</code></td><td>能拿到泛型参数的类型</td><td>做不到，<code>T</code> 在运行时不存在</td><td><a href="../lessons/0001-types-vanish-at-runtime.html">0001</a></td></tr>
+  <thead>
+    <tr><th>话题</th><th>C#</th><th>TypeScript</th><th>出处</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>类型存在于</td><td>编译期和运行时（可以反射）</td><td><strong>只在编译期</strong>，运行前会被擦除</td><td><a href="../lessons/0001-types-vanish-at-runtime.html">0001</a></td></tr>
+    <tr><td>有类型错误时</td><td>编译失败，没有产物</td><td>默认<strong>照样产出 JS</strong>，退出码非 0</td><td><a href="../lessons/0001-types-vanish-at-runtime.html">0001</a></td></tr>
+    <tr><td>运行时语义</td><td>由 .NET 决定</td><td>完全是 JavaScript 的规则（例如 <code>"1" + 2</code> 得到 <code>"12"</code>）</td><td><a href="../lessons/0001-types-vanish-at-runtime.html">0001</a></td></tr>
+    <tr><td><code>typeof(T)</code></td><td>能拿到泛型参数的类型</td><td>做不到，<code>T</code> 在运行时不存在</td><td><a href="../lessons/0001-types-vanish-at-runtime.html">0001</a></td></tr>
+  </tbody>
 </table>
+</div>
 
 <h2>命令</h2>
+<div class="table-wrap">
 <table>
-  <tr><th>目的</th><th>命令</th><th>做类型检查吗</th></tr>
-  <tr><td>直接运行 .ts（Node ≥ 22.18）</td><td><code>node file.ts</code></td><td>不做，只删除类型</td></tr>
-  <tr><td>只检查，不输出文件</td><td><code>npx tsc --noEmit</code></td><td>做</td></tr>
-  <tr><td>编译出 .js</td><td><code>npx tsc</code></td><td>做，但出错时默认仍然输出</td></tr>
+  <thead>
+    <tr><th>目的</th><th>命令</th><th>做类型检查吗</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>直接运行 .ts（Node ≥ 22.18）</td><td><code>node file.ts</code></td><td>不做，只删除类型</td></tr>
+    <tr><td>只检查，不输出文件</td><td><code>npx tsc --noEmit</code></td><td>做</td></tr>
+    <tr><td>编译出 .js</td><td><code>npx tsc</code></td><td>做，但出错时默认仍然输出</td></tr>
+  </tbody>
 </table>
+</div>
 
 <h2>审查清单</h2>
-<ul>
+<ul class="checklist">
   <li><code>package.json</code> 的 <code>scripts</code> 或 CI 里有 <code>tsc</code> 吗？没有的话，类型没有任何东西在把关。</li>
 </ul>
 
 <footer>来源：<a href="https://nodejs.org/api/typescript.html">Node.js: Modules: TypeScript</a> · <a href="https://www.typescriptlang.org/tsconfig/noEmitOnError.html">TSConfig: noEmitOnError</a> · <a href="https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes-oop.html">TypeScript for Java/C# Programmers</a></footer>
 </main>
+<aside class="page-toc" aria-label="本页大纲"></aside>
+</div>
+
+<script src="../assets/site.js"></script>
 </body>
 </html>

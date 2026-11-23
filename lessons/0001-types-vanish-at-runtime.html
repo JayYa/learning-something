@@ -7,6 +7,20 @@
 <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-brand" href="../index.html">TS 审阅笔记</a>
+    <nav class="site-nav" aria-label="站点导航">
+      <a href="../index.html">目录</a>
+      <a href="../reference/roadmap.html">学习路线</a>
+      <a href="../reference/csharp-to-ts.html">C# → TS 速查</a>
+    </nav>
+    <span class="header-meta">第 0 阶段 · 第 1 课</span>
+  </div>
+</header>
+
+<div class="page-shell has-toc">
 <main>
 
 <p class="kicker">第 0 阶段 · 第 1 课 · 约 15 分钟</p>
@@ -17,32 +31,44 @@
 <p>你本机的 Node 是 v26，可以直接运行 <code>.ts</code> 文件。找一个空目录，跟着做：</p>
 
 <ol class="steps">
-  <li>新建 <code>hello.ts</code>，内容如下。注意最后一行故意把字符串 <code>"1"</code> 传给了要求 <code>number</code> 的参数：
-<pre><code>function add(a: number, b: number): number {
+  <li>新建 <code>hello.ts</code>，内容如下。注意第 6 行故意把字符串 <code>"1"</code> 传给了要求 <code>number</code> 的参数：
+    <div class="code-block" data-lines data-error-line="6">
+      <div class="code-head"><span class="code-label">hello.ts</span></div>
+      <pre><code>function add(a: number, b: number): number {
   return a + b;
 }
 
 console.log(add(1, 2));
 console.log(add("1", 2));</code></pre>
+    </div>
   </li>
   <li>
     <div class="predict">运行之前，先在纸上写下你的预测：<code>node hello.ts</code> 会报错，还是会打印结果？如果打印，打印什么？</div>
     然后运行：
-<pre><code>node hello.ts</code></pre>
+    <div class="code-block is-terminal">
+      <div class="code-head"><span class="code-label">Terminal</span></div>
+      <pre><code>node hello.ts</code></pre>
+    </div>
   </li>
   <li>再用 TypeScript 编译器检查一次（第一次运行会自动下载 <code>typescript</code> 包）：
-<pre><code>npx -p typescript tsc --noEmit hello.ts</code></pre>
+    <div class="code-block is-terminal">
+      <div class="code-head"><span class="code-label">Terminal</span></div>
+      <pre><code>npx -p typescript tsc --noEmit hello.ts</code></pre>
+    </div>
   </li>
 </ol>
 
 <p>我在你这台机器上跑过，结果是：</p>
-<pre><code>&gt; node hello.ts
+<div class="code-block is-terminal" data-lines data-hl-line="3" data-error-line="6,7">
+  <div class="code-head"><span class="code-label">运行输出</span></div>
+  <pre><code>&gt; node hello.ts
 3
 12
 
 &gt; npx -p typescript tsc --noEmit hello.ts
 hello.ts(6,17): error TS2345: Argument of type 'string' is not
 assignable to parameter of type 'number'.</code></pre>
+</div>
 
 <p>同一个文件，Node 照常运行，还算出了一个错误的结果 <code>12</code>；<code>tsc</code> 则指出第 6 行有类型错误。</p>
 
@@ -55,8 +81,8 @@ assignable to parameter of type 'number'.</code></pre>
 <p><strong>结果 <code>12</code> 是 JavaScript 的规则。</strong><code>+</code> 的两边只要有一个是字符串，就会做字符串拼接。<a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/Addition">[MDN: 加法]</a> 类型被删掉以后，运行时只剩下 JS 的语义。</p>
 
 <div class="compare">
-  <p style="margin:0 0 .5rem">在 C# 里，类型错误就是编译错误，没有程序集，程序就跑不起来。类型在运行时也一直存在，可以用 <code>typeof(T)</code>、<code>GetType()</code> 做反射。</p>
-  <p style="margin:0">TS 不一样：<strong>类型检查和运行是两条互不相干的路</strong>，运行时也没有任何类型信息。官方的 C# 对照文档专门提醒过这一点。<a href="https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes-oop.html#rethinking-types">[Handbook: Rethinking Types]</a></p>
+  <p>在 C# 里，类型错误就是编译错误，没有程序集，程序就跑不起来。类型在运行时也一直存在，可以用 <code>typeof(T)</code>、<code>GetType()</code> 做反射。</p>
+  <p>TS 不一样：<strong>类型检查和运行是两条互不相干的路</strong>，运行时也没有任何类型信息。官方的 C# 对照文档专门提醒过这一点。<a href="https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes-oop.html#rethinking-types">[Handbook: Rethinking Types]</a></p>
 </div>
 
 <h2>这对审查 AI 代码意味着什么</h2>
@@ -119,9 +145,16 @@ assignable to parameter of type 'number'.</code></pre>
 
 <div class="callout ask">实验结果和我说的不一样？对哪句话有疑问？或者想知道 <code>tsc</code> 和 Vite 这类工具是怎么配合的？直接在对话里问我。</div>
 
-<nav class="lesson-nav"><span><a href="../reference/roadmap.html">← 学习路线</a></span><span class="muted">下一课：编辑器悬停，读代码最强的工具</span></nav>
+<nav class="lesson-nav">
+  <span><a href="../reference/roadmap.html">← 学习路线</a></span>
+  <span class="muted">下一课：编辑器悬停，读代码最强的工具</span>
+</nav>
 
 </main>
+<aside class="page-toc" aria-label="本页大纲"></aside>
+</div>
+
+<script src="../assets/site.js"></script>
 <script src="../assets/quiz.js"></script>
 </body>
 </html>

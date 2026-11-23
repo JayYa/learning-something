@@ -7,6 +7,20 @@
 <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-brand" href="../index.html">TS 审阅笔记</a>
+    <nav class="site-nav" aria-label="站点导航">
+      <a href="../index.html">目录</a>
+      <a href="roadmap.html" class="active">学习路线</a>
+      <a href="csharp-to-ts.html">C# → TS 速查</a>
+    </nav>
+    <span class="header-meta">Reference · 学习路线</span>
+  </div>
+</header>
+
+<div class="page-shell has-toc">
 <main>
 
 <p class="kicker">Reference · 学习路线</p>
@@ -31,7 +45,7 @@
     <p class="chapters"><span>005 Kickstart Your TypeScript Setup</span><span>010 TypeScript in the Build Process</span><span>016.5 IDE Superpowers</span></p>
     <p>类型只在编译期存在，运行时会被擦除。<code>tsc</code>、Vite、<code>tsx</code> 各自扮演什么角色。最重要的一件事：<strong>编辑器悬停（hover）是读代码最强的工具</strong>，读不懂的类型先悬停看看。</p>
     <ul class="review"><li>审查能力：能判断"这个项目到底有没有在做类型检查"，比如 CI 里有没有跑 <code>tsc</code>。</li></ul>
-    <p class="small">第一课：<a href="../lessons/0001-types-vanish-at-runtime.html">0001 · 类型只活在编译期</a></p>
+    <p class="small" data-lesson-key="0001-types-vanish-at-runtime">第一课：<a href="../lessons/0001-types-vanish-at-runtime.html">0001 · 类型只活在编译期</a> </p>
   </div>
 </div>
 
@@ -99,12 +113,18 @@
 </div>
 
 <h2>节奏与形式</h2>
+<div class="table-wrap">
 <table>
-  <tr><th>单元</th><th>内容</th><th>时长</th></tr>
-  <tr><td>一课</td><td>一个很窄的知识点 + 即时反馈的小测或审查题</td><td>15–25 分钟</td></tr>
-  <tr><td>一个阶段</td><td>3–6 课 + 1 次审查练习（我出题，你写意见，我点评）</td><td>约 1–2 周</td></tr>
-  <tr><td>间隔复习</td><td>每课开头混入 1–2 道前面阶段的题</td><td>2–3 分钟</td></tr>
+  <thead>
+    <tr><th>单元</th><th>内容</th><th>时长</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>一课</td><td>一个很窄的知识点 + 即时反馈的小测或审查题</td><td>15–25 分钟</td></tr>
+    <tr><td>一个阶段</td><td>3–6 课 + 1 次审查练习（我出题，你写意见，我点评）</td><td>约 1–2 周</td></tr>
+    <tr><td>间隔复习</td><td>每课开头混入 1–2 道前面阶段的题</td><td>2–3 分钟</td></tr>
+  </tbody>
 </table>
+</div>
 <p class="small muted">你的时间不固定，所以每课都能独立完成，中途停下也不影响后面。</p>
 
 <h2>资料</h2>
@@ -121,5 +141,9 @@
 
 <footer>完整工作区说明见仓库根目录的 MISSION.md、RESOURCES.md。课程列表来源：<a href="https://www.totaltypescript.com/workshops/typescript-pro-essentials">totaltypescript.com</a> 与其公开练习仓库。</footer>
 </main>
+<aside class="page-toc" aria-label="本页大纲"></aside>
+</div>
+
+<script src="../assets/site.js"></script>
 </body>
 </html>
