@@ -28,7 +28,7 @@
 <p class="subtitle">为什么一段 TypeScript 代码"能跑通"，却可能是错的？这课从语言设计与工具链的底层架构讲起，帮你建立审阅 AI 代码的第一套方法论：先查验证门禁，再看运行时边界，最后才看实现细节。</p>
 
 <h2>一、一个暴露真相的实验</h2>
-<p>你本机的 Node 是 v26，原生支持直接运行 <code>.ts</code> 文件。在讲任何理论之前，先用 5 分钟亲眼看一遍 TypeScript 的"分裂现场"——这个现象决定了你以后审阅所有 TS 项目时的第一直觉。</p>
+<p>你本机的 Node 是 v26，原生支持直接运行 <code>.ts</code> 文件。在讲任何理论之前，先用 5 分钟亲眼看一遍 TypeScript 的"分裂现场"。这个现象决定了你以后审阅所有 TS 项目时的第一直觉。</p>
 
 <ol class="steps">
   <li>找一个空目录，新建 <code>hello.ts</code>。注意第 6 行故意把字符串 <code>"1"</code> 传给了要求 <code>number</code> 的参数：
@@ -86,14 +86,14 @@ console.log(add("1", 2));</code></pre>
 <ul>
   <li><strong>第一，<code>node hello.ts</code> 毫无警告地跑完了</strong>，而且不是崩溃，是安静地算出了一个错误答案 <code>12</code>。</li>
   <li><strong>第二，<code>tsc</code> 明确报了类型错误</strong>，但在默认配置下仍然把 <code>hello.js</code> 写到了磁盘上（只是进程退出码不为 0）。</li>
-  <li><strong>第三，<code>hello.js</code> 里没有任何类型的痕迹</strong>——<code>: number</code> 像注释一样人间蒸发，剩下的代码完全按 JavaScript 的规则执行（<code>+</code> 两边只要有一边是字符串，就做字符串拼接<a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/Addition">[MDN: 加法]</a>）。</li>
+  <li><strong>第三，<code>hello.js</code> 里没有任何类型的痕迹</strong>，<code>: number</code> 像注释一样人间蒸发，剩下的代码完全按 JavaScript 的规则执行（<code>+</code> 两边只要有一边是字符串，就做字符串拼接<a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/Addition">[MDN: 加法]</a>）。</li>
 </ul>
 
 <h2>二、底层原因：为什么 TypeScript 必须"擦除类型"</h2>
 <p>如果只把上面的现象背成几条死规则，过两周就会忘，或者换个工具（比如 Vite、Next.js、<code>tsx</code>）就又懵了。要真正吃透，必须看清背后的四个底层设计原因。</p>
 
-<h3>1. 宿命约束：TS 没有自己的虚拟机，它寄生在 JS 引擎之上</h3>
-<p>在 C# 里，语言、编译器（Roslyn）、中间语言（IL）和运行时（CLR）是一整套垂直设计的体系。你写下的类型定义会被编译进程序集的元数据表，CLR 在运行时真的认识每一个类型——所以泛型参数可以保留到运行时（reified generics），<code>typeof(T)</code>、<code>GetType()</code> 和反射都顺理成章。</p>
+<h3>1. 运行时约束：TS 没有自己的虚拟机，直接运行在 JS 引擎之上</h3>
+<p>在 C# 里，语言、编译器（Roslyn）、中间语言（IL）和运行时（CLR）是一整套垂直设计的体系。你写下的类型定义会被编译进程序集的元数据表，CLR 在运行时真的认识每一个类型，所以泛型参数可以保留到运行时（reified generics），<code>typeof(T)</code>、<code>GetType()</code> 和反射都顺理成章。</p>
 
 <p>TypeScript 从诞生第一天起就不具备这个前提。它必须跑在现有的浏览器（V8、SpiderMonkey、JavaScriptCore）和 Node.js 上，<strong>不能要求全世界的 JS 引擎为它改架构，也不能给运行时增加额外开销</strong>。因此它选择了<strong>类型擦除（type erasure）</strong>：所有类型注解、<code>interface</code>、<code>type</code> 别名、泛型参数，全部只用于编译期静态分析，运行前统统剥离。<a href="https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes-oop.html#rethinking-types">[Handbook: Rethinking Types]</a></p>
 
@@ -115,21 +115,21 @@ IL + 类型元数据（类型错误则无产物）
   </div>
 </div>
 
-<h3>2. 语言铁律：类型系统绝不改变运行时行为</h3>
+<h3>2. 设计原则：类型系统不改变运行时行为</h3>
 <p>TypeScript 官方的《设计目标》里写着一条极其关键的<strong>非目标（Non-Goal）</strong>："不向程序添加或依赖运行时类型信息，也不根据类型系统的分析结果输出不同的运行时代码"（<em>never emit different code based on the results of the type system</em>）。<a href="https://github.com/microsoft/TypeScript/wiki/TypeScript-Design-Goals">[TypeScript Design Goals]</a></p>
 
-<p>为什么要定下这么"克制"的铁律？背后有两个非常务实的工程原因：</p>
+<p>为什么要定下这条设计原则？背后有两个务实的工程原因：</p>
 <ul>
   <li><strong>可预测性：</strong>开发者看着一行 TS 代码，只要在脑中把类型注解划掉，就能百分之百确定它在 JS 引擎里会怎么跑。你永远不用担心"编译器是不是根据某个隐晦的类型推导，偷偷帮我改写了运行时逻辑"。</li>
   <li><strong>支持单文件极速转译：</strong>正因为输出 JS 不依赖跨文件的全局类型推导，外部工具才能只看单个文件的语法就把类型剥掉，不需要运行完整的类型检查器。</li>
 </ul>
 
-<p>这条铁律也顺带解释了 C# 开发者最容易困惑的几个"为什么 TS 做不到"：TS 不能像 C# 那样按参数类型做真正的运行时方法重载，不能在泛型函数里写 <code>new T()</code> 或 <code>default(T)</code>，<code>interface</code> 在编译后占用 0 字节——因为这些全都需要类型信息参与运行时。</p>
+<p>这条原则也顺带解释了 C# 开发者最容易困惑的几个"为什么 TS 做不到"：TS 不能像 C# 那样按参数类型做真正的运行时方法重载，不能在泛型函数里写 <code>new T()</code> 或 <code>default(T)</code>，<code>interface</code> 在编译后占用 0 字节。这些全都需要类型信息参与运行时。</p>
 
 <h3>3. 历史与渐进迁移：为什么 <code>tsc</code> 报错后默认仍输出 JS？</h3>
 <p>哪怕你用的是官方编译器 <code>tsc</code>，它在发现类型错误后默认依然会吐出 <code>.js</code> 文件，只通过<strong>非零退出码</strong>通知外部失败。这是 TS 团队有意保留的设计。<a href="https://github.com/Microsoft/TypeScript/issues/7602">[TypeScript #7602]</a></p>
 
-<p>底层原因在于 TS 的核心定位是<strong>渐进式类型系统（gradual typing）</strong>：大量团队是把存量 JS 项目一点点改成 TS 的。如果一个文件里还有三处复杂类型没标好，编译器就彻底拒绝生成 JS，开发者连本地调试和跑单元测试都会被卡死。于是 TS 把"报错"和"阻止产出"拆开了——只有当你显式打开 <code>noEmitOnError: true</code> 时，它才会在出错时不产出文件。<a href="https://www.typescriptlang.org/tsconfig/noEmitOnError.html">[TSConfig: noEmitOnError]</a></p>
+<p>底层原因在于 TS 的核心定位是<strong>渐进式类型系统（gradual typing）</strong>：大量团队是把存量 JS 项目一点点改成 TS 的。如果一个文件里还有三处复杂类型没标好，编译器就彻底拒绝生成 JS，开发者连本地调试和跑单元测试都会被卡死。于是 TS 把"报错"和"阻止产出"拆开了：只有当你显式打开 <code>noEmitOnError: true</code> 时，它才会在出错时不产出文件。<a href="https://www.typescriptlang.org/tsconfig/noEmitOnError.html">[TSConfig: noEmitOnError]</a></p>
 
 <h3>4. 现代工具链的架构分工：为什么 Node、Vite、esbuild 都"不检查类型"？</h3>
 <p>明白了前两条，你就能瞬间看穿整个现代前端与 Node 工具链的分工逻辑。把 TS 变成可执行的 JS，和检查 TS 的类型是否正确，其实是<strong>复杂度完全不同的两件事</strong>：</p>
@@ -158,7 +158,7 @@ IL + 类型元数据（类型错误则无产物）
 </table>
 </div>
 
-<p>以你本机的 Node.js 为例：Node 运行 <code>.ts</code> 时采用的是<strong>类型剥离（type stripping）</strong>——把类型注解替换成等长的空白字符（这样甚至不需要 source map，报错堆栈的行号也能和源码严丝合缝），官方文档明言 <em>"no type checking is performed"</em>。<a href="https://nodejs.org/api/typescript.html">[Node.js: TypeScript]</a> 同理，Vite 官方文档也专门强调：<em>"Vite only performs transpilation on <code>.ts</code> files and does NOT perform type checking."</em><a href="https://vite.dev/guide/features.html#typescript">[Vite: TypeScript]</a></p>
+<p>以你本机的 Node.js 为例：Node 运行 <code>.ts</code> 时采用的是<strong>类型剥离（type stripping）</strong>，也就是把类型注解替换成等长的空白字符（这样甚至不需要 source map，报错堆栈的行号也能和源码严丝合缝）。官方文档明言 <em>"no type checking is performed"</em>。<a href="https://nodejs.org/api/typescript.html">[Node.js: TypeScript]</a> 同理，Vite 官方文档也专门强调：<em>"Vite only performs transpilation on <code>.ts</code> files and does NOT perform type checking."</em><a href="https://vite.dev/guide/features.html#typescript">[Vite: TypeScript]</a></p>
 
 <p class="small muted">顺带一提：正因为 Node 只做纯粹的空白替换，像 <code>enum</code>、<code>namespace</code> 这种需要生成额外 JS 代码的 TS 专属语法，在默认 type stripping 模式下反而是不支持的。这也是为什么新版 TypeScript 专门引入了 <code>erasableSyntaxOnly</code> 选项，用来把项目限制在"纯可擦除语法"之内。<a href="https://www.typescriptlang.org/tsconfig/erasableSyntaxOnly.html">[TSConfig: erasableSyntaxOnly]</a></p>
 
@@ -187,7 +187,7 @@ IL + 类型元数据（类型错误则无产物）
 <div class="principle">
   <span class="principle-label">方法论原则 2 · Static Interior, Validated Boundary</span>
   <p class="principle-title">静态类型只守内部，所有运行时边界必须做运行时校验</p>
-  <p>既然 TS 类型在运行前归零，编译器能守住的<strong>只有程序内部</strong>——也就是从你自己的代码里创建并传递的值。凡是跨越<strong>运行时边界</strong>从外部进来的数据——HTTP 接口返回值（<code>await res.json()</code>）、<code>JSON.parse()</code>、环境变量 <code>process.env</code>、本地配置文件、用户输入——在编译期根本不存在，TS 不可能知道它们运行时的真实长相。</p>
+  <p>既然 TS 类型在运行前归零，编译器能守住的<strong>只有程序内部</strong>，也就是从你自己的代码里创建并传递的值。凡是跨越<strong>运行时边界</strong>从外部进来的数据（例如 HTTP 接口返回值 <code>await res.json()</code>、<code>JSON.parse()</code>、环境变量 <code>process.env</code>、本地配置文件、用户输入），在编译期根本不存在，TS 不可能知道它们运行时的真实长相。</p>
   <p><strong>AI 最常见的坏习惯：</strong>在边界处直接写 <code>const user: User = await res.json()</code> 或 <code>JSON.parse(raw) as Config</code>。这看起来很像 C# 的强类型反序列化，实际上<strong>只是对编译器说"闭上眼睛相信我"</strong>，运行时零校验。</p>
   <p><strong>审阅动作：</strong>看到数据跨过外部边界，立刻问一句：<em>"如果上游少传了一个字段，或者把数字传成了字符串，这段代码会在入口处立刻报错，还是会把脏数据放进系统内部？"</em> 答案如果是后者，就该要求 AI 在边界补上运行时检查（或使用校验库如 Zod，后续阶段会细讲）。</p>
 </div>
@@ -238,7 +238,7 @@ console.log(calcTotal(order)); // 运行时打印 "10010"，没有任何报错</
   <ol>
     <li><strong>查门禁（原则 1）：</strong><code>package.json</code> 里只有 <code>node calc.ts</code> 和 <code>vite build</code>，两者都只剥离/转译、不做类型检查。这个仓库里根本没有类型门禁。</li>
     <li><strong>查边界（原则 2）：</strong>第 7 行 <code>JSON.parse(raw) as Order</code> 跨过了运行时边界。<code>interface Order</code> 在运行前已被擦除，<code>as Order</code> 只是让编译器闭嘴，运行时完全没有检查 <code>shipping</code> 到底是不是 <code>number</code>。</li>
-    <li><strong>看后果（原则 3）：</strong>上游把 <code>shipping</code> 传成了字符串 <code>"10"</code>，代码既没在编译期报错，也没在运行时崩掉，而是静默拼出了 <code>"10010"</code>——典型的静默数据污染。</li>
+    <li><strong>看后果（原则 3）：</strong>上游把 <code>shipping</code> 传成了字符串 <code>"10"</code>，代码既没在编译期报错，也没在运行时崩掉，而是静默拼出了 <code>"10010"</code>，这就是典型的静默数据污染。</li>
   </ol>
 
   <div class="review-prompt">
@@ -329,7 +329,7 @@ console.log(calcTotal(order)); // 运行时打印 "10010"，没有任何报错</
 
 <nav class="lesson-nav">
   <span><a href="../reference/roadmap.html">← 学习路线</a></span>
-  <span class="muted">下一课：编辑器悬停，读懂 AI 代码最强的工具</span>
+  <span><a href="0002-editor-hover-and-language-service.html">下一课：编辑器悬停与语言服务 →</a></span>
 </nav>
 
 </main>

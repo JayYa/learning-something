@@ -790,6 +790,48 @@ ol.steps > li { margin: 1rem 0; }
   margin-bottom: .25rem;
 }
 
+/* IDE 悬停提示模拟框（跨课复用） */
+.hover-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .9rem;
+  margin: 1.2rem 0;
+  font-family: var(--sans);
+}
+.hover-tip {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--surface);
+  overflow: hidden;
+  font-size: .88rem;
+  line-height: 1.6;
+}
+.hover-tip-head {
+  padding: .35rem .8rem;
+  background: var(--code-head-bg);
+  border-bottom: 1px solid var(--rule);
+  font-size: .78rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.hover-tip-type {
+  margin: 0;
+  padding: .6rem .85rem;
+  font-family: var(--mono);
+  font-size: .82rem;
+  line-height: 1.55;
+  background: var(--code-bg);
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+.hover-tip-note {
+  margin: 0;
+  padding: .55rem .85rem;
+  color: var(--muted);
+}
+
 .lesson-nav {
   display: flex;
   justify-content: space-between;
@@ -820,7 +862,7 @@ footer {
   h1 { font-size: 1.65rem; }
   .phase-body { margin-left: 0; margin-top: .35rem; }
   .quiz { padding: .9rem 1rem; }
-  .pipe-grid { grid-template-columns: 1fr; }
+  .pipe-grid, .hover-grid { grid-template-columns: 1fr; }
 }
 
 /* 打印样式 */
@@ -842,7 +884,7 @@ footer {
   a { color: #000; }
   main a[href^="http"]::after { content: none; }
   h2 { break-after: avoid; }
-  .phase, pre, .code-block, table, .compare, .callout, .quiz, .principle, .pipe-card, .review-case { break-inside: avoid; }
+  .phase, pre, .code-block, table, .compare, .callout, .quiz, .principle, .pipe-card, .review-case, .hover-tip { break-inside: avoid; }
   thead { display: table-header-group; }
   .site-header, .page-toc, .filter-bar, .code-copy, .lesson-nav, .no-print { display: none !important; }
 }

@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0002 · 编辑器悬停与语言服务</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-brand" href="../index.html">TS 审阅笔记</a>
+    <nav class="site-nav" aria-label="站点导航">
+      <a href="../index.html">目录</a>
+      <a href="../reference/roadmap.html">学习路线</a>
+      <a href="../reference/csharp-to-ts.html">C# → TS 速查</a>
+    </nav>
+    <span class="header-meta">第 0 阶段 · 第 2 课</span>
+  </div>
+</header>
+
+<div class="page-shell has-toc">
+<main>
+
+<p class="kicker">第 0 阶段 · 第 2 课 · 约 35 分钟（可分段读完）</p>
+<h1>编辑器悬停与语言服务</h1>
+<p class="subtitle">读不懂 AI 写的 TypeScript 时，不要靠肉眼猜类型。这课从编辑器背后的语言服务 <code>tsserver</code> 架构讲起，帮你建立"先悬停、再跳转、自底向上读报错"的审阅工作流。</p>
+
+<h2>零、课前热身：回顾第 1 课</h2>
+<p class="small muted">不翻上一课，先用 2 道题唤起记忆（这两题会计入页底的总分）。</p>
+
+<div class="quiz" data-answer="2">
+  <p class="q">AI 交付的脚本用 <code>node app.ts</code> 跑通了，并且输出了预期结果。这能证明什么？</p>
+  <ol class="options">
+    <li>说明代码已经通过完整的静态类型检查</li>
+    <li>说明运行时校验已经拦截所有非法输入</li>
+    <li>只说明剥离类型后该路径执行没有报错</li>
+    <li>只说明项目配置已开启出错不输出选项</li>
+  </ol>
+  <div class="explain">Node 运行 <code>.ts</code> 只做类型剥离，不做静态类型检查。单条执行路径跑通，对类型是否正确以及边界校验是否存在都没有证明力。</div>
+</div>
+
+<div class="quiz" data-answer="0">
+  <p class="q">代码里写了 <code>const user = (await res.json()) as User;</code>。如果接口少返回了一个必填字段，运行时会发生什么？</p>
+  <ol class="options">
+    <li>不会报错，残缺对象直接流入后续逻辑</li>
+    <li>立刻报错，引擎按接口定义拦截该对象</li>
+    <li>自动补全，缺失字段会被设为默认零值</li>
+    <li>编译失败，编译器会提前校验接口结构</li>
+  </ol>
+  <div class="explain"><code>as User</code> 只作用于编译期，运行前会被擦除，不会执行任何字段校验。缺少字段的对象会直接流入系统内部。</div>
+</div>
+
+<h2>一、一个 5 分钟实验：用悬停透视同一份代码</h2>
+<p>上一课我们建立了"先查门禁，再查边界"的宏观视角。但真正打开一个 AI 生成的 <code>.ts</code> 文件准备逐行审阅时，你会发现很多变量和函数根本没写类型注解。这时候不要在脑子里硬算类型，而是让编辑器替你算。</p>
+
+<ol class="steps">
+  <li>在本地用 VS Code（或任何带 TypeScript 支持的编辑器）新建 <code>hover-demo.ts</code>，粘贴下面 20 行代码：
+    <div class="code-block" data-lines data-hl-line="10,11,13,15,17" data-error-line="20">
+      <div class="code-head"><span class="code-label">hover-demo.ts</span></div>
+      <pre><code>interface Order {
+  id: string;
+  meta: { amount: number };
+}
+
+function parsePayload(raw: string) {
+  return JSON.parse(raw);
+}
+
+const data = parsePayload('{"id": "A1"}');
+const total = data.meta.amount + 10;
+
+function formatTag(input: string | number) {
+  if (typeof input === "string") {
+    return input.toUpperCase();
+  }
+  return input.toFixed(2);
+}
+
+const badOrder: Order = { id: "A2", meta: { amount: "100" } };</code></pre>
+    </div>
+  </li>
+  <li>
+    <div class="predict">把鼠标移上去之前，先停 10 秒写下三个预测：<br>
+    ① 悬停在第 10 行的 <code>data</code> 和第 11 行的 <code>total</code> 上，编辑器会显示什么类型？为什么编辑器没有对 <code>data.meta.amount</code> 标红？<br>
+    ② 悬停在第 13 行的 <code>input</code>，再悬停在第 15 行的 <code>input</code> 和第 17 行的 <code>input</code>，这三个位置显示的类型一样吗？<br>
+    ③ 悬停在第 20 行红色波浪线上，这段报错有几行？哪一行直接指出了真正写错的字段？</div>
+    然后依次把鼠标悬停在代码高亮的四处位置（在 VS Code 里也可以把光标移过去按 <code>Ctrl+K Ctrl+I</code> 呼出悬停卡片）。
+  </li>
+</ol>
+
+<p>你在编辑器里看到的悬停卡片（Quick Info）会长这样：</p>
+
+<div class="hover-grid">
+  <div class="hover-tip">
+    <div class="hover-tip-head">第 10、11 行：data 与 total</div>
+    <pre class="hover-tip-type">const data: any
+const total: any</pre>
+    <p class="hover-tip-note"><code>JSON.parse</code> 的官方返回类型是 <code>any</code>，因为函数没有显式写返回类型，<code>any</code> 顺着调用链无声扩散到了 <code>data</code> 和 <code>total</code>。</p>
+  </div>
+  <div class="hover-tip">
+    <div class="hover-tip-head">第 13 行：formatTag 函数名</div>
+    <pre class="hover-tip-type">function formatTag(input: string | number): string</pre>
+    <p class="hover-tip-note">尽管代码里没写返回值注解，语言服务已经把两个分支的返回结果合并推导出返回类型 <code>string</code>。</p>
+  </div>
+  <div class="hover-tip">
+    <div class="hover-tip-head">第 15 行 vs 第 17 行：同一个 input</div>
+    <pre class="hover-tip-type">// 第 15 行：(parameter) input: string
+// 第 17 行：(parameter) input: number</pre>
+    <p class="hover-tip-note">同一个参数名在不同代码行上类型不同。语言服务沿控制流分析，判断出第 17 行不可能再是 <code>string</code>。</p>
+  </div>
+  <div class="hover-tip">
+    <div class="hover-tip-head">第 20 行：badOrder 报错（嵌套结构）</div>
+    <pre class="hover-tip-type">Type '{ amount: string; }' is not assignable to type '{ amount: number; }'.
+  Types of property 'amount' are incompatible.
+    Type 'string' is not assignable to type 'number'.</pre>
+    <p class="hover-tip-note">报错按对象层级从外往里缩进打印，最具体的错误原因落在最后一行。</p>
+  </div>
+</div>
+
+<h2>二、底层原因：编辑器里的红线和悬停提示从哪来？</h2>
+<p>把编辑器当成一个普通文本工具时，你会觉得这些提示只是"辅助插件"。实际上，在 TypeScript 体系里，编译器本身就被设计成同时为命令行和编辑器服务的双形态系统。</p>
+
+<h3>1. 后台常驻进程：<code>tsserver</code> 与 <code>tsc</code> 的分工</h3>
+<p>当你用 VS Code 打开任意一个 <code>.ts</code> 文件时，编辑器会在后台启动一个常驻的 Node.js 进程，名叫 <code>tsserver</code>（Standalone Server，位于 <code>node_modules/typescript/lib/tsserver.js</code>）。它封装了和 <code>tsc</code> 完全相同的类型检查核心，通过 JSON 协议接收编辑器发来的光标位置与文件变更事件，再把类型、跳转位置和诊断错误返回给界面。<a href="https://github.com/microsoft/TypeScript/wiki/Standalone-Server-%28tsserver%29">[TypeScript Wiki: tsserver]</a></p>
+
+<div class="pipe-grid">
+  <div class="pipe-card is-muted">
+    <p class="pipe-head">命令行检查：<code>tsc --noEmit</code></p>
+    <div class="pipe-flow">启动进程 → 读取 tsconfig.json
+  → 解析全项目文件并做完整类型检查
+  → 打印全部诊断信息 → 返回退出码并退出</div>
+    <p><strong>定位：</strong>批处理门禁。适合提交前检查和 CI，保证全仓库零遗漏，但每次运行都要完整走一遍检查。</p>
+  </div>
+  <div class="pipe-card is-accent">
+    <p class="pipe-head">编辑器语言服务：<code>tsserver</code></p>
+    <div class="pipe-flow">打开项目时常驻内存 → 维护项目语法树与符号图
+  → 监听增量编辑，只重算受影响的文件
+  → 按光标行列坐标响应 quickInfo / definition / diagnostics</div>
+    <p><strong>定位：</strong>交互式检查器。毫秒级反馈当前位置的推导类型和报错，是你阅读与审阅代码时的第一工具。</p>
+  </div>
+</div>
+
+<h3>2. 位置敏感的类型推导：为什么悬停比"找声明"更有用</h3>
+<p>写过 C# 的人读代码时，习惯右键"转到定义"去看变量的声明类型。但在 TypeScript 里，仅仅看变量声明往往不够，原因有两个：</p>
+<ul>
+  <li><strong>大量类型来自隐式推导，源码里根本没写出来：</strong>例如 <code>parsePayload</code> 的返回值、链式数组操作 <code>items.filter(...).map(...)</code> 的中间结果，源码字面上一个类型名都看不见，但 <code>tsserver</code> 已经完整算出了它的结构。</li>
+  <li><strong>类型随控制流逐行变化（Control-Flow Analysis）：</strong>如前面实验中的 <code>input</code>，它在参数表里是 <code>string | number</code>，进 <code>if</code> 变成 <code>string</code>，出 <code>if</code> 变成 <code>number</code>。悬停查询的是"类型检查器在当前这一行、这一列算出来的瞬时类型"，而不仅仅是声明处的静态签名。</li>
+</ul>
+
+<div class="compare">
+  <p><strong>C# / Visual Studio（Roslyn）：</strong>变量类型大多是具名的名义类型（<code>Order</code>、<code>List&lt;User&gt;</code>），即使写了 <code>var</code>，类型在整个作用域内也是固定不变的。悬停主要用来确认变量是哪个类、有哪些重载成员；且 Visual Studio 里的 Roslyn 与本地 .NET SDK 版本通常绑定较紧。</p>
+  <p><strong>TypeScript / VS Code（<code>tsserver</code>）：</strong>类型以结构推导为主，常出现未命名的匿名对象形状（例如 <code>{ id: string; meta: { amount: number } }</code>），并且同一变量在不同分支里的类型会动态收窄。另外，VS Code 默认自带一份内置 TypeScript，它和仓库 <code>node_modules</code> 里装的版本可能不同，审阅前需要核对。</p>
+</div>
+
+<h3>3. 为什么编辑器的提示有时会和 <code>tsc</code> 不一致？</h3>
+<p>在真实项目里，审阅者经常遇到一个困惑："我用编辑器打开没看到红线，为什么 CI 跑 <code>tsc --noEmit</code> 却报错？"或者反过来"命令行明明过了，编辑器还满屏红线"。因为 <code>tsserver</code> 是一个独立常驻进程，出现偏差通常来自以下三个工程原因：</p>
+<ol>
+  <li><strong>TypeScript 版本不一致：</strong>VS Code 自带一套内置 TypeScript，而你的仓库在 <code>package.json</code> 里安装了另一套版本。两个版本对新语法或严格规则的检查结果可能不同。在 VS Code 右下角状态栏点击 <code>TypeScript x.y.z</code>，选择 <code>Use Workspace Version</code>，就能让编辑器改用项目自己的 <code>node_modules/typescript</code>。<a href="https://code.visualstudio.com/docs/typescript/typescript-compiling">[VS Code: TypeScript Version]</a></li>
+  <li><strong>命中的 <code>tsconfig.json</code> 不同：</strong><code>tsserver</code> 为打开的文件向上逐级查找最近的 <code>tsconfig.json</code>。如果你只单独打开了一个文件（没有打开项目根目录），或者项目里有多个 <code>tsconfig</code>（如 <code>tsconfig.app.json</code> 与 <code>tsconfig.test.json</code>），编辑器套用的严格度选项可能与 CI 的 <code>tsc -p</code> 命令不同。</li>
+  <li><strong>常驻内存缓存陈旧：</strong>当你切了 Git 分支、刚跑完 <code>npm install</code>、改了 <code>tsconfig.json</code>，或者用脚本重新生成了类型声明文件时，常驻的 <code>tsserver</code> 有时不会立刻感知全部磁盘变化。按 <code>Ctrl+Shift+P</code> 打开命令面板，运行 <code>TypeScript: Restart TS Server</code> 即可强制重建内存图谱。</li>
+</ol>
+
+<h3>4. 审阅者最常用的五个语言服务动作</h3>
+<p>除了悬停本身，<code>tsserver</code> 还提供了一组直接服务于代码审阅的导航与透视能力。<a href="https://code.visualstudio.com/docs/typescript/typescript-editing">[VS Code: Editing TypeScript]</a></p>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th>动作</th><th>VS Code 快捷键 / 入口</th><th>它查什么</th><th>审阅 AI 代码时的典型用途</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>悬停（Hover / Quick Info）</strong></td>
+      <td>鼠标悬停 / <code>Ctrl+K Ctrl+I</code></td>
+      <td>光标处表达式的推导类型、JSDoc 与报错</td>
+      <td>验证隐式返回值、排查无声扩散的 <code>any</code>、查看分支收窄结果</td>
+    </tr>
+    <tr>
+      <td><strong>转到定义（Go to Definition）</strong></td>
+      <td><code>F12</code> / <code>Ctrl+点击</code></td>
+      <td>函数、变量或类的声明与实现位置</td>
+      <td>追踪 AI 调用的内部辅助函数到底干了什么</td>
+    </tr>
+    <tr>
+      <td><strong>转到类型定义（Go to Type Definition）</strong></td>
+      <td>右键菜单 / 命令面板</td>
+      <td>跳过变量实现，直接跳到它背后类型的声明处</td>
+      <td>直接查看第三方库或复杂返回值对应的 <code>interface</code> / <code>type</code> 结构</td>
+    </tr>
+    <tr>
+      <td><strong>查找所有引用（Find All References）</strong></td>
+      <td><code>Shift+F12</code></td>
+      <td>全项目中引用该符号或属性的所有位置</td>
+      <td>AI 修改字段类型或删除属性时，核对所有调用点是否同步更新</td>
+    </tr>
+    <tr>
+      <td><strong>内联提示（Inlay Hints）</strong></td>
+      <td>设置 <code>typescript.inlayHints.*</code></td>
+      <td>在代码行内直接渲染推导出的参数名、变量类型与返回类型</td>
+      <td>审阅大段未写注解的 AI 代码时一次性暴露所有推导类型，且提示本身可悬停和跳转</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>三、方法论：用编辑器审阅 AI 代码的三条工作流</h2>
+<p>结合第 1 课的"双管道模型"和今天讲的 <code>tsserver</code> 机制，我们可以把读代码的具体动作沉淀为三条可迁移的审阅工作流。</p>
+
+<div class="principle">
+  <span class="principle-label">方法论原则 4 · Hover Before Guessing</span>
+  <p class="principle-title">先悬停，不肉眼推演：沿着数据流排查隐式类型退化</p>
+  <p>AI 生成的代码经常省略中间变量和函数的返回类型注解。只看变量名（比如 <code>const user</code>、<code>const total</code>），很容易默认它是强类型对象，实际上上游某一步的 <code>any</code> 可能已经把整条链路的类型检查架空了。</p>
+  <p><strong>审阅动作：</strong>拿到一段新代码，先顺着数据的流向（入口函数返回值 → 中间变量 → 最终消费处）依次悬停 3 到 5 个关键节点。只要在某个节点看到 <code>any</code>、过宽的 <code>object</code> 或意料之外的 <code>undefined</code>，立刻顺着往回悬停，十秒内就能定位类型退化的源头。</p>
+</div>
+
+<div class="principle">
+  <span class="principle-label">方法论原则 5 · Bottom-Up Error Reading</span>
+  <p class="principle-title">自底向上读嵌套报错：先看最后一行，再回溯外层路径</p>
+  <p>TypeScript 做的是结构类型检查，当两个嵌套对象不兼容时，编译器会从最外层结构开始，一层一层往下拆解并缩进输出，直到抵达冲突的叶子属性。如果你像读 C# 单行报错那样从第一行往下硬啃，很容易被一屏展开的对象字面量淹没。</p>
+  <p><strong>审阅动作：</strong>看到多行 TS 报错，视线直接跳到<strong>最后一行</strong>，先弄清最底层的冲突是什么（例如 <code>Type 'string' is not assignable to type 'number'</code>）；再往上看紧邻的上一行，确认是哪个属性名出的错（例如 <code>property 'amount'</code>）；最后才看顶层是在哪个函数调用或赋值语句里触发的。绝不因为报错太长就放任 AI 加 <code>as any</code> 消音。</p>
+</div>
+
+<div class="principle">
+  <span class="principle-label">方法论原则 6 · Verify Your Inspector</span>
+  <p class="principle-title">先校准审阅工具，再下结论：以工作区版本和 <code>tsc</code> 为准</p>
+  <p>编辑器没标红，不代表代码一定过了类型检查，因为 <code>tsserver</code> 可能用了错误的 TS 版本、命中了错误的 <code>tsconfig.json</code>，或者停留在陈旧缓存里。</p>
+  <p><strong>审阅动作：</strong>接手一个新仓库做审阅前，花 5 秒看一眼 VS Code 右下角：确认已切换为 <code>Use Workspace Version</code>，并确认当前文件归属于预期的 <code>tsconfig.json</code>；切分支或装完依赖后如果提示表现反常，立刻执行 <code>Restart TS Server</code>。最终放行代码前，仍然以命令行 <code>tsc --noEmit</code> 的零报错输出为准。</p>
+</div>
+
+<h2>四、实战演练：用悬停和报错拆解一段 AI 代码</h2>
+<p>假设你让 AI 写一个拉取用户并发送邮件通知的模块。AI 提交了下面这段代码，并附上一句："编辑器里主要逻辑很清晰，只有最后一行有个很长的类型报错，我打算加个 <code>as any</code> 绕过去。"</p>
+
+<div class="review-case">
+  <p class="review-case-head">待审阅的 AI 交付物</p>
+  <div class="code-block" data-lines data-hl-line="9,15,16" data-error-line="22,24">
+    <div class="code-head"><span class="code-label">notify.ts</span></div>
+    <pre><code>interface EmailJob {
+  to: string;
+  profile: {
+    displayName: string;
+    verified: boolean;
+  };
+}
+
+async function fetchUser(id: string) {
+  const res = await fetch(`/api/users/${id}`);
+  return res.json();
+}
+
+async function sendWelcome(id: string) {
+  const user = await fetchUser(id);
+  const name = user.profile.name.trim();
+  console.log("准备发送给:", name);
+}
+
+function enqueueEmail(job: EmailJob) { /* 入队 */ }
+
+enqueueEmail({
+  to: "dev@example.com",
+  profile: { displayName: "Lin", verified: "true" },
+});</code></pre>
+  </div>
+
+  <p>第 22 行调用 <code>enqueueEmail</code> 时，编辑器给出如下多行报错：</p>
+  <div class="code-block is-terminal" data-lines data-error-line="4,5">
+    <div class="code-head"><span class="code-label">TS 悬停报错</span></div>
+    <pre><code>Argument of type '{ to: string; profile: { displayName: string; verified: string; }; }' is not assignable to parameter of type 'EmailJob'.
+  Types of property 'profile' are incompatible.
+    Type '{ displayName: string; verified: string; }' is not assignable to type '{ displayName: string; verified: boolean; }'.
+      Types of property 'verified' are incompatible.
+        Type 'string' is not assignable to type 'boolean'.</code></pre>
+  </div>
+
+  <p><strong>按本课三条工作流逐层拆解：</strong></p>
+  <ol>
+    <li><strong>顺着数据流悬停（原则 4）：</strong>悬停第 9 行 <code>fetchUser</code>，看到返回类型是 <code>Promise&lt;any&gt;</code>（因为 <code>res.json()</code> 返回 <code>Promise&lt;any&gt;</code>）。再悬停第 15 行的 <code>user</code> 和第 16 行的 <code>name</code>，两者全是 <code>any</code>。这就是为什么 <code>user.profile.name.trim()</code> 没有任何红线，哪怕后端实际字段叫 <code>displayName</code> 而不是 <code>name</code>，编译期也完全发现不了。</li>
+    <li><strong>自底向上读报错（原则 5）：</strong>忽略第 22 行报错的前三行外层展开，直接看最后两行：<code>Types of property 'verified' are incompatible</code> → <code>Type 'string' is not assignable to type 'boolean'</code>。两秒钟就能看出是把布尔值 <code>true</code> 错写成了字符串 <code>"true"</code>，根本不该用 <code>as any</code> 压制。</li>
+    <li><strong>检查是否还有其他引用（导航动作）：</strong>在 <code>EmailJob</code> 上用"查找所有引用"，确认仓库里还有没有别处把 <code>verified</code> 当字符串传。</li>
+  </ol>
+
+  <div class="review-prompt">
+    "不要加 <code>as any</code>。请修改两处：① 第 22 行报错的根因是 <code>profile.verified</code> 传了字符串 <code>\"true\"</code> 而不是 <code>boolean</code>，请改为布尔值 <code>true</code>；② 悬停检查发现 <code>fetchUser</code> 返回了隐式 <code>Promise&lt;any&gt;</code>，导致 <code>user</code> 和 <code>name</code> 失去类型保护，请为 <code>fetchUser</code> 补上明确的返回类型并在 <code>res.json()</code> 边界处校验返回结构，同时确认字段名是 <code>displayName</code> 还是 <code>name</code>。"
+  </div>
+</div>
+
+<h2>五、检验一下</h2>
+<p class="small muted">本课自测（接续开头的 2 道热身题，全页共 8 题）。每题只能选一次，凭理解作答，不要往上翻。</p>
+
+<div class="quiz" data-answer="3">
+  <p class="q">编辑器里的红色波浪线、悬停类型提示和代码跳转，底层是由哪个组件实时计算出来的？</p>
+  <ol class="options">
+    <li>本地浏览器引擎在预览页面时自动回传的</li>
+    <li>每次保存文件后重新执行打包命令生成的</li>
+    <li>编辑器内置的正则语法高亮插件估算出的</li>
+    <li>后台常驻的语言服务维护内存图实时算的</li>
+  </ol>
+  <div class="explain">VS Code 等编辑器在后台运行常驻进程 <code>tsserver</code>，它封装了与 <code>tsc</code> 相同的类型检查器，维护内存中的项目符号图并按光标坐标响应悬停、跳转和诊断请求。</div>
+</div>
+
+<div class="quiz" data-answer="1">
+  <p class="q">同一个变量 <code>x</code>，在第 5 行悬停显示 <code>string | number</code>，在第 7 行 <code>if</code> 分支里悬停却显示 <code>string</code>。原因是什么？</p>
+  <ol class="options">
+    <li>语言服务缓存过期必须重启进程才会恢复原样</li>
+    <li>悬停反映控制流收窄后该位置的实际推导类型</li>
+    <li>编译器在分支里自动改写了变量原本的声明值</li>
+    <li>编辑器默认隐藏联合类型里排在后面的成员项</li>
+  </ol>
+  <div class="explain">TypeScript 的类型检查包含控制流分析（Control-Flow Analysis），悬停显示的是光标所在具体位置经过收窄后的推导类型，而不只是变量声明时的初始类型。</div>
+</div>
+
+<div class="quiz" data-answer="0">
+  <p class="q">审阅 <code>const order = loadOrder(raw)</code> 时，你不想看 <code>loadOrder</code> 的实现细节，只想直接看 <code>order</code> 的结构定义，应该用哪个动作？</p>
+  <ol class="options">
+    <li>转到类型定义，直接跳到其接口或类型声明</li>
+    <li>转到符号定义，直接跳到变量赋值所在位置</li>
+    <li>查找所有引用，直接列出全项目的调用位置</li>
+    <li>重启语言服务，直接刷新全项目的符号缓存</li>
+  </ol>
+  <div class="explain">"转到类型定义（Go to Type Definition）"会跳过变量声明和函数实现，直接定位到该值对应类型的 <code>interface</code> 或 <code>type</code> 定义，审阅封装函数和第三方库返回值时尤其高效。</div>
+</div>
+
+<div class="quiz" data-answer="2">
+  <p class="q">看到一段长达 12 行的嵌套对象类型报错时，按本课方法论，应该先从哪里读起？</p>
+  <ol class="options">
+    <li>先读最顶层第一行，按顺序逐行翻译全部内容</li>
+    <li>先忽略全部报错细节，直接在调用处加上断言</li>
+    <li>先看最底部最后一行，再向上回溯外层的路径</li>
+    <li>先看错误编号的数字，再查手册记住所有规则</li>
+  </ol>
+  <div class="explain">TypeScript 的结构类型报错从最外层对象向内缩进展开，最具体、最直接的冲突原因通常就在最后一行，因此自底向上读效率最高。</div>
+</div>
+
+<div class="quiz" data-answer="3">
+  <p class="q">你在编辑器里打开 AI 改完的文件，界面没有任何红线，但 CI 运行 <code>tsc --noEmit</code> 却报了错。你首先应该排查什么？</p>
+  <ol class="options">
+    <li>排查代码格式化插件是否把静态错误折叠隐藏了</li>
+    <li>排查打包工具是否在构建阶段把类型错误吞掉了</li>
+    <li>排查编辑器主题配色是否把红色波浪线设成透明</li>
+    <li>排查编辑器所用编译器版本与配置文件是否一致</li>
+  </ol>
+  <div class="explain">编辑器与 <code>tsc</code> 出现不一致，最常见原因是 VS Code 用了内置 TS 而非工作区版本、文件命中的 <code>tsconfig.json</code> 与 CI 不同，或 <code>tsserver</code> 内存缓存陈旧。</div>
+</div>
+
+<div class="quiz" data-answer="1">
+  <p class="q">审阅一段没有写显式返回类型的 AI 函数时，哪种做法最符合本课"先悬停，不肉眼推演"的原则？</p>
+  <ol class="options">
+    <li>先要求把全部变量都手写上显式注解后再审阅</li>
+    <li>顺着数据流逐个悬停关键变量排查隐式宽类型</li>
+    <li>先把整段函数复制到终端里运行一遍再看输出</li>
+    <li>根据函数名和参数名自行推断返回值直接放行</li>
+  </ol>
+  <div class="explain">TypeScript 的很多类型由编译器推导得出，不必强求处处手写注解，但也不能靠命名猜测。顺着数据流悬停关键节点，能快速发现隐式 <code>any</code> 或过宽的返回类型。</div>
+</div>
+
+<div id="quiz-score"></div>
+
+<h2>六、延伸阅读与下一步</h2>
+<div class="callout source"><a href="https://www.totaltypescript.com/books/total-typescript-essentials/ide-superpowers">Total TypeScript Essentials: IDE Superpowers</a>（免费在线书第 2 章，约 10 分钟）。对照今天讲的悬停检查、报错阅读和自动补全机制。</div>
+<p class="small">想进一步了解编辑器里所有 TypeScript 导航、重构与内联提示配置，可以查阅官方的 <a href="https://code.visualstudio.com/docs/typescript/typescript-editing">VS Code: Editing TypeScript</a>；想看 <code>tsserver</code> 后台进程的协议与工作原理，见官方 Wiki 的 <a href="https://github.com/microsoft/TypeScript/wiki/Standalone-Server-%28tsserver%29">Standalone Server (tsserver)</a>。</p>
+
+<p class="small">本课的 C# 对照、快捷键分工与审阅清单已同步更新到参考页：<a href="../reference/csharp-to-ts.html">C# → TypeScript 速查</a>。整体学习进度见 <a href="../reference/roadmap.html">学习路线</a>。</p>
+
+<div class="callout ask">做完实验后，你在编辑器里看到的悬停结果和预期有出入吗？或者想现在就来一次"第 0 阶段综合审查练习"（我给你一份带坑的迷你项目，你来写审查意见），还是直接进入 0.5 阶段 JS 速通？直接在对话里告诉我。</div>
+
+<nav class="lesson-nav">
+  <span><a href="0001-types-vanish-at-runtime.html">← 上一课：类型只活在编译期</a></span>
+  <span class="muted">下一步：第 0 阶段审查练习 / 0.5 阶段 JS 速通</span>
+</nav>
+
+</main>
+<aside class="page-toc" aria-label="本页大纲"></aside>
+</div>
+
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

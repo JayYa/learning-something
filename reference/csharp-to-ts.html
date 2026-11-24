@@ -46,6 +46,9 @@
     <tr><td>运行时语义</td><td>由 .NET / CLR 决定</td><td>100% 是 JavaScript 规则（例如 <code>"1" + 2</code> 静默算出 <code>"12"</code>）</td><td><a href="../lessons/0001-types-vanish-at-runtime.html">0001</a></td></tr>
     <tr><td><code>typeof(T)</code> 与泛型</td><td>泛型在运行时实体化，可反射读取 <code>T</code></td><td><code>T</code> 运行时不存在；想校验结构需显式传校验函数或 schema</td><td><a href="../lessons/0001-types-vanish-at-runtime.html">0001</a></td></tr>
     <tr><td>外部数据反序列化</td><td><code>JsonSerializer.Deserialize&lt;T&gt;</code> 按元数据校验构造</td><td><code>JSON.parse(s) as T</code> / <code>res.json()</code> <strong>零运行时校验</strong>，脏数据直接流入</td><td><a href="../lessons/0001-types-vanish-at-runtime.html">0001</a></td></tr>
+    <tr><td>IDE 悬停与类型变化</td><td>变量声明后类型固定，悬停主要确认具名类与成员</td><td><strong>位置敏感</strong>：同一变量在不同 <code>if</code> 分支里会被控制流收窄成不同类型，悬停查的是当前光标处的推导结果</td><td><a href="../lessons/0002-editor-hover-and-language-service.html">0002</a></td></tr>
+    <tr><td>IDE 与编译器版本</td><td>Visual Studio 的 Roslyn 与本地 .NET SDK 绑定较紧</td><td>VS Code 默认用内置 TS，可能与仓库 <code>node_modules/typescript</code> 版本不一致，需切换为 <code>Use Workspace Version</code></td><td><a href="../lessons/0002-editor-hover-and-language-service.html">0002</a></td></tr>
+    <tr><td>嵌套类型报错阅读</td><td>单行或扁平的编译错误，通常从头读起</td><td>结构检查逐层缩进展开，<strong>最具体的错误原因落在最后一行</strong>，应自底向上阅读</td><td><a href="../lessons/0002-editor-hover-and-language-service.html">0002</a></td></tr>
   </tbody>
 </table>
 </div>
@@ -59,6 +62,7 @@
   <tbody>
     <tr><td>直接运行 .ts（Node ≥ 22.18）</td><td><code>node file.ts</code></td><td>单文件类型剥离（空白替换，保留行号）</td><td><strong>不做</strong></td></tr>
     <tr><td>前端构建 / 快速执行</td><td><code>vite build</code>、esbuild、SWC、<code>tsx</code></td><td>单文件语法转译</td><td><strong>不做</strong></td></tr>
+    <tr><td>编辑器实时提示与跳转</td><td><code>tsserver</code>（后台常驻语言服务）</td><td>维护内存符号图，增量重算，按光标坐标返回 Quick Info / 跳转 / 诊断</td><td><strong>做</strong>（受版本、配置与缓存影响）</td></tr>
     <tr><td>只做静态检查，不输出文件</td><td><code>npx tsc --noEmit</code></td><td>全项目类型图分析（门禁首选）</td><td><strong>做</strong></td></tr>
     <tr><td>编译并产出 .js</td><td><code>npx tsc</code></td><td>全项目检查 + 产出（出错默认仍输出，除非开 <code>noEmitOnError</code>）</td><td><strong>做</strong></td></tr>
   </tbody>
@@ -70,9 +74,12 @@
   <li><strong>先查门禁：</strong><code>package.json</code> 的 <code>scripts</code> 和 CI 里有没有跑 <code>tsc --noEmit</code>？<code>build</code> 是不是只跑了 <code>vite build</code> 而跳过了类型检查？（0001）</li>
   <li><strong>再查边界：</strong>凡是 <code>JSON.parse</code>、<code>fetch().then(r =&gt; r.json())</code>、<code>process.env</code>、读文件等外部输入，有没有运行时校验，还是直接用了 <code>as T</code> / 类型注解"假装安全"？（0001）</li>
   <li><strong>警惕静默错算：</strong>AI 说"跑通了 / 测试过了"时，确认是否验证过静态类型检查零报错，防止隐式转换导致静默数据污染。（0001）</li>
+  <li><strong>校准审阅工具：</strong>打开仓库先看 VS Code 状态栏是否启用 <code>Use Workspace Version</code>，切分支或装依赖后提示异常就跑 <code>TypeScript: Restart TS Server</code>。（0002）</li>
+  <li><strong>顺流悬停查 <code>any</code>：</strong>对未写注解的 AI 代码，顺着数据流悬停入口返回值和中间变量，防止 <code>res.json()</code> / <code>JSON.parse()</code> 返回的 <code>any</code> 无声扩散。（0002）</li>
+  <li><strong>自底向上读报错：</strong>遇到多行嵌套类型报错先看最后一行定位具体属性冲突，拒绝 AI 为省事加 <code>as any</code> 消音。（0002）</li>
 </ul>
 
-<footer>来源：<a href="https://github.com/microsoft/TypeScript/wiki/TypeScript-Design-Goals">TypeScript Design Goals</a> · <a href="https://nodejs.org/api/typescript.html">Node.js: Modules: TypeScript</a> · <a href="https://vite.dev/guide/features.html#typescript">Vite: TypeScript</a> · <a href="https://www.typescriptlang.org/tsconfig/noEmitOnError.html">TSConfig: noEmitOnError</a> · <a href="https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes-oop.html">TypeScript for Java/C# Programmers</a></footer>
+<footer>来源：<a href="https://github.com/microsoft/TypeScript/wiki/TypeScript-Design-Goals">TypeScript Design Goals</a> · <a href="https://nodejs.org/api/typescript.html">Node.js: Modules: TypeScript</a> · <a href="https://vite.dev/guide/features.html#typescript">Vite: TypeScript</a> · <a href="https://www.typescriptlang.org/tsconfig/noEmitOnError.html">TSConfig: noEmitOnError</a> · <a href="https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes-oop.html">TypeScript for Java/C# Programmers</a> · <a href="https://github.com/microsoft/TypeScript/wiki/Standalone-Server-%28tsserver%29">TypeScript Wiki: tsserver</a> · <a href="https://code.visualstudio.com/docs/typescript/typescript-editing">VS Code: Editing TypeScript</a></footer>
 </main>
 <aside class="page-toc" aria-label="本页大纲"></aside>
 </div>
