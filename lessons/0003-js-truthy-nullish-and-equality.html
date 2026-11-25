@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0003 · JS 的空值、真假值与判等</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-brand" href="../index.html">TS 审阅笔记</a>
+    <nav class="site-nav" aria-label="站点导航">
+      <a href="../index.html">目录</a>
+      <a href="../reference/roadmap.html">学习路线</a>
+      <a href="../reference/csharp-to-ts.html">C# → TS 速查</a>
+    </nav>
+    <span class="header-meta">第 0.5 阶段 · 第 1 课</span>
+  </div>
+</header>
+
+<div class="page-shell has-toc">
+<main>
+
+<p class="kicker">第 0.5 阶段 · 第 1 课 · 约 35 分钟</p>
+<h1>JS 的空值、真假值与判等</h1>
+<p class="subtitle">TypeScript 的类型在运行前会被擦除，真正跑在引擎里的是 JavaScript 的求值规则。这课从 <code>null</code> 与 <code>undefined</code>、真假值转换、<code>||</code> 与 <code>??</code> / <code>?.</code>、以及 <code>==</code> 与 <code>===</code> 讲起，帮你识别 AI 代码里最常见的静默逻辑错误。</p>
+
+<h2>零、课前热身：回顾第 0 阶段</h2>
+<p class="small muted">不翻前两课，先用 2 道题唤起记忆（这两题会计入页底的总分）。</p>
+
+<div class="quiz" data-answer="1">
+  <p class="q">接手 AI 交付的仓库，你发现 <code>package.json</code> 里的 <code>build</code> 命令只跑了 <code>esbuild</code> 打包，且终端显示打包成功。此时可以得出什么结论？</p>
+  <ol class="options">
+    <li>说明所有文件的静态类型已全部通过检查</li>
+    <li>只说明语法转译成功但并未校验静态类型</li>
+    <li>说明运行时边界已自动补齐了结构校验器</li>
+    <li>只说明编译器启用了出错后不输出的模式</li>
+  </ol>
+  <div class="explain"><code>esbuild</code>、Vite、SWC 和 <code>node file.ts</code> 都只负责转译或剥离类型，不做静态类型检查。确认项目类型安全必须检查是否运行了 <code>tsc --noEmit</code>。</div>
+</div>
+
+<div class="quiz" data-answer="3">
+  <p class="q">审阅 AI 写的数据处理函数时，遇到一段 5 层缩进的嵌套类型报错，AI 提议加个 <code>as unknown as Target</code> 压掉。最稳妥的审阅顺序是？</p>
+  <ol class="options">
+    <li>同意加上双重断言，只要避开显式写法就行</li>
+    <li>从报错首行逐字读，先放宽目标接口的字段</li>
+    <li>直接运行主文件测，只要不抛异常即可放行</li>
+    <li>先看最底一行根因，拒绝断言并按根因修改</li>
+  </ol>
+  <div class="explain"><code>as unknown as Target</code> 只是 <code>as any</code> 的等价马甲。面对多行嵌套报错，应自底向上先读最后一行定位具体冲突字段，再要求 AI 按根因修复，不要靠断言消音或改坏接口。</div>
+</div>
+
+<h2>一、一个 5 分钟实验：让 Node 暴露 JS 的反直觉求值</h2>
+<p>在 C# 里，<code>if</code> 括号里必须是 <code>bool</code>，<code>null</code> 只有一种，<code>0</code> 绝不会被当成"没有值"。JavaScript 则完全不同。先用本机的 Node 跑 6 行代码，亲眼确认这些差异。</p>
+
+<ol class="steps">
+  <li>新建 <code>js-values-demo.ts</code>，粘贴下面代码：
+    <div class="code-block" data-lines data-hl-line="2,4,7">
+      <div class="code-head"><span class="code-label">js-values-demo.ts</span></div>
+      <pre><code>const cfg = { timeout: 0, retries: undefined, label: "" };
+console.log("1:", cfg.timeout || 3000, "|", cfg.timeout ?? 3000);
+console.log("2:", JSON.stringify(cfg.label || "default"), "|", JSON.stringify(cfg.label ?? "default"));
+console.log("3:", Boolean([]), Boolean({}), Boolean("0"));
+console.log("4:", 0 == "", "" == false, 0 === "");
+console.log("5:", NaN === NaN, isNaN("abc"), Number.isNaN("abc"));
+console.log("6:", JSON.stringify({ a: undefined, b: null }));</code></pre>
+    </div>
+  </li>
+  <li>
+    <div class="predict">运行前先停 15 秒写下三个预测：<br>
+    ① 第 2 行里，<code>cfg.timeout</code> 是合法的数字 <code>0</code>，<code>|| 3000</code> 和 <code>?? 3000</code> 输出一样吗？<br>
+    ② 第 4 行里，空数组 <code>[]</code>、空对象 <code>{}</code>、字符串 <code>"0"</code> 转成布尔值分别是 <code>true</code> 还是 <code>false</code>？<br>
+    ③ 第 7 行把包含 <code>undefined</code> 和 <code>null</code> 的对象序列化成 JSON 后，两个键都会保留下来吗？</div>
+    运行 <code>node js-values-demo.ts</code>，观察输出：
+    <div class="code-block is-terminal" data-lines data-hl-line="2,4,7">
+      <div class="code-head"><span class="code-label">运行输出（Node v26）</span></div>
+      <pre><code>&gt; node js-values-demo.ts
+1: 3000 | 0
+2: "default" | ""
+3: true true true
+4: true true false
+5: false true false
+6: {"b":null}</code></pre>
+    </div>
+  </li>
+</ol>
+
+<p>这 6 行输出几乎浓缩了 C# 开发者初读 JS/TS 代码时最容易踩的所有运行时坑：<code>0</code> 和 <code>""</code> 被 <code>||</code> 静默吞掉了；空数组和空对象在条件判断里都是真值；<code>0 == ""</code> 居然成立；<code>NaN</code> 不等于它自己；<code>undefined</code> 在 JSON 序列化时直接消失了。</p>
+
+<h2>二、底层原因：为什么 JavaScript 会这样表现？</h2>
+<p>这些行为不是零散的怪癖，而是由 JavaScript 运行时规范里的四套基础机制决定的。理解了机制，你在审阅任何 AI 生成的条件判断和表达式时都能一眼看出隐患。</p>
+
+<h3>1. 为什么 JS 有两个"空"：<code>undefined</code> 与 <code>null</code></h3>
+<p>在 C# 里，引用类型没有对象就是 <code>null</code>（值类型加 <code>?</code> 表示可空）。JavaScript 从 1995 年第一版设计时就并存着两个"空值"：</p>
+<ul>
+  <li><strong><code>undefined</code>（未定义 / 缺失）：</strong>由 JS 引擎在"没有值"的地方自动产生。声明了变量未赋值、访问对象上不存在的属性、函数没有 <code>return</code>、调用函数时漏传参数，拿到的全都是 <code>undefined</code>。<a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/undefined">[MDN: undefined]</a></li>
+  <li><strong><code>null</code>（明确为空）：</strong>引擎几乎不会自动产生 <code>null</code>，它通常由开发者或后端接口显式赋值，用来表达"这里存在这个字段，但当前明确没有值"。<a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/null">[MDN: null]</a></li>
+</ul>
+
+<p>两者在工程审阅中最容易引发 bug 的两个运行时差异：</p>
+<ul>
+  <li><strong>JSON 序列化行为不同：</strong><code>JSON.stringify({ a: undefined, b: null })</code> 的结果是 <code>{"b":null}</code>，值为 <code>undefined</code> 的键会被直接省略。在 PATCH 更新接口中，很多后端把"不传该键"理解为"保持原值"，把"传 <code>null</code>"理解为"清空字段"。如果 AI 把清空逻辑错写成 <code>undefined</code>，接口会静默失效。</li>
+  <li><strong><code>typeof null === "object"</code> 的历史遗留：</strong>这是 JS 第一版实现留下的类型标签 bug，因兼容海量存量网页永远无法修复。审阅类型守卫代码时，看到 <code>if (typeof x === "object")</code> 却没补一句 <code>x !== null</code>，后面访问 <code>x.id</code> 就会在遇到 <code>null</code> 时直接抛出 <code>TypeError</code>。<a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/typeof">[MDN: typeof]</a></li>
+</ul>
+
+<h3>2. <code>ToBoolean</code> 与真假值表：为什么 <code>if (x)</code> 什么都能放进去</h3>
+<p>C# 在编译期强制要求 <code>if (...)</code> 的条件必须是 <code>bool</code>。JavaScript 作为动态脚本语言，允许任意值出现在条件位置（<code>if (x)</code>、<code>while (x)</code>、<code>!x</code>、<code>x ? a : b</code>、<code>a &amp;&amp; b</code>、<code>a || b</code>），引擎会自动调用规范里的抽象操作 <code>ToBoolean</code> 把它转成真或假。</p>
+
+<p>好消息是，整个 JavaScript 世界里<strong>假值（Falsy）只有固定的 8 个</strong>，除此之外的一切值全都是真值（Truthy）：<a href="https://developer.mozilla.org/zh-CN/docs/Glossary/Falsy">[MDN: Falsy]</a></p>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th>分类</th><th>具体值</th><th>审阅时的常见陷阱</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>8 个假值（Falsy）</strong></td>
+      <td><code>false</code>、<code>0</code>、<code>-0</code>、<code>0n</code>（BigInt 零）、<code>""</code>（空字符串）、<code>null</code>、<code>undefined</code>、<code>NaN</code></td>
+      <td><code>0</code>、<code>""</code>、<code>false</code> 在业务里往往是完全合法的输入值（例如免费价格 <code>0</code>、第 <code>0</code> 页、空备注 <code>""</code>、开关 <code>false</code>），不能当成"没传值"。</td>
+    </tr>
+    <tr>
+      <td><strong>容易误判的真值（Truthy）</strong></td>
+      <td><code>[]</code>（空数组）、<code>{}</code>（空对象）、<code>"0"</code>（字符串零）、<code>"false"</code>（非空字符串）</td>
+      <td>AI 写 <code>if (items)</code> 想判断"列表非空"，结果接口返回 <code>[]</code> 时条件照样为真；正确写法必须显式检查 <code>items.length &gt; 0</code>。</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>3. <code>||</code>、<code>&amp;&amp;</code>、<code>??</code> 与 <code>?.</code>：逻辑运算符返回的不是布尔值</h3>
+<p>C# 开发者读 JS 代码时，最容易看晕的往往是满屏的 <code>a || b</code>、<code>a &amp;&amp; b</code>、<code>a?.b ?? c</code>。先记住一条底层规则：<strong>JS 的 <code>||</code>、<code>&amp;&amp;</code>、<code>??</code> 并不返回布尔值，它们返回的是实际决定短路结果的那一侧操作数本身。</strong></p>
+
+<div class="pipe-grid">
+  <div class="pipe-card is-muted">
+    <p class="pipe-head">逻辑或：<code>a || b</code>（按真假值判断）</p>
+    <div class="pipe-flow">求值 a → ToBoolean(a) 为 true ?
+  是 → 直接返回 a（不求值 b）
+  否 → 求值并返回 b</div>
+    <p><strong>问题：</strong>当 <code>a</code> 是 <code>0</code>、<code>""</code> 或 <code>false</code> 时，<code>ToBoolean(a)</code> 为 <code>false</code>，会被误判为"无效"而回退到 <code>b</code>。</p>
+  </div>
+  <div class="pipe-card is-accent">
+    <p class="pipe-head">空值合并：<code>a ?? b</code>（只按 nullish 判断）</p>
+    <div class="pipe-flow">求值 a → a 是 null 或 undefined ?
+  是 → 求值并返回 b
+  否 → 直接返回 a（0、""、false 都会保留）</div>
+    <p><strong>定位：</strong>ES2020 专门为"设置默认值"引入的运算符，语义精准对齐 C# 的 <code>??</code>。<a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/Nullish_coalescing_operator">[MDN: ??]</a></p>
+  </div>
+</div>
+
+<p>再看配套出现的另外两个高频写法：</p>
+<ul>
+  <li><strong>逻辑与 <code>a &amp;&amp; b</code>：</strong>如果 <code>a</code> 为假值，直接返回 <code>a</code>；如果 <code>a</code> 为真值，则求值并返回 <code>b</code>。AI 经常用它写条件执行（如 <code>isDebug &amp;&amp; logDetail()</code>）或前端条件渲染。注意隐患：如果左侧是数字 <code>0</code>（例如 <code>items.length &amp;&amp; renderList()</code>），表达式会直接返回数字 <code>0</code> 而不是 <code>false</code>。</li>
+  <li><strong>可选链 <code>?.</code>：</strong>支持属性访问 <code>a?.b</code>、动态键/数组下标 <code>a?.[key]</code>、以及函数调用 <code>cb?.(arg)</code>。只要 <code>?.</code> 左侧是 <code>null</code> 或 <code>undefined</code>，整条后续访问链立刻短路，统一返回 <code>undefined</code>（即使左侧是 <code>null</code>，结果也是 <code>undefined</code>），不会抛 <code>TypeError</code>。<a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/Optional_chaining">[MDN: ?.]</a></li>
+</ul>
+
+<div class="compare">
+  <p><strong>C# 的心智模型：</strong><code>&amp;&amp;</code> 与 <code>||</code> 只能连接 <code>bool</code> 且只返回 <code>bool</code>；给空值设默认值天然就用 <code>??</code>；空条件访问用 <code>?.</code>（支持 <code>a?.b</code>、<code>a?[0]</code>、<code>fn?.Invoke()</code>），且 <code>null?.Prop</code> 返回对应可空类型的 <code>null</code>。</p>
+  <p><strong>JS / TS 的心智模型：</strong><code>&amp;&amp;</code> 与 <code>||</code> 可以连接任意类型并返回原始操作数；早年 JS 没有 <code>??</code>，历史代码和部分 AI 训练语料习惯用 <code>||</code> 写默认值，导致 <code>0</code> / <code>""</code> / <code>false</code> 被误杀。现代 TS 代码里，<strong>设默认值应默认使用 <code>??</code></strong>，配合可选链写成 <code>user?.profile?.name ?? "匿名"</code>。注意 JS 动态索引与函数调用必须保留点号：<code>arr?.[0]</code>、<code>fn?.()</code>。</p>
+</div>
+
+<h3>4. 宽松相等 <code>==</code> vs 严格相等 <code>===</code>，以及 <code>NaN</code> 陷阱</h3>
+<p>JavaScript 提供多套相等比较算法，审阅代码时必须分清它们在类型不同时的行为：<a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Guide/Equality_comparisons_and_sameness">[MDN: 相等比较与相同性]</a></p>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th>写法</th><th>规范算法</th><th>跨类型时怎么处理</th><th>典型结果与审阅建议</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>a === b</code> / <code>a !== b</code></td>
+      <td><code>IsStrictlyEqual</code></td>
+      <td><strong>不做转换</strong>，类型不同直接返回 <code>false</code></td>
+      <td><code>0 === ""</code> 为 <code>false</code>；<code>null === undefined</code> 为 <code>false</code>；<strong>默认首选</strong>。</td>
+    </tr>
+    <tr>
+      <td><code>a == b</code> / <code>a != b</code></td>
+      <td><code>IsLooselyEqual</code></td>
+      <td>先按复杂规则做<strong>隐式类型转换</strong>再比较</td>
+      <td><code>0 == ""</code>、<code>"" == false</code>、<code>"0" == false</code>、<code>[] == false</code> 全为 <code>true</code>，且不满足传递性（<code>0 == ""</code> 且 <code>0 == "0"</code>，但 <code>"" == "0"</code> 为 <code>false</code>）；<strong>默认禁用</strong>。</td>
+    </tr>
+    <tr>
+      <td><code>Object.is(a, b)</code></td>
+      <td><code>SameValue</code></td>
+      <td>不做转换，修复 <code>===</code> 的两个 IEEE 754 边界</td>
+      <td><code>Object.is(NaN, NaN)</code> 为 <code>true</code>，<code>Object.is(+0, -0)</code> 为 <code>false</code>；主要用于需要区分 <code>NaN</code> 的底层比较。</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>关于 <code>NaN</code>（Not-a-Number）：</strong>按照 IEEE 754 浮点数标准，<code>NaN === NaN</code> 恒为 <code>false</code>，所以写 <code>if (x === NaN)</code> 永远进不去分支。同时要警惕两个长得很像的函数：</p>
+<ul>
+  <li><strong>全局 <code>isNaN(x)</code>（慎用）：</strong>会先把参数隐式转成数字再判断。于是 <code>isNaN("abc")</code> 返回 <code>true</code>，但 <code>isNaN("")</code>、<code>isNaN(null)</code>、<code>isNaN(false)</code> 因为能转成 <code>0</code> 而全部返回 <code>false</code>。<a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/isNaN">[MDN: isNaN]</a></li>
+  <li><strong><code>Number.isNaN(x)</code>（推荐）：</strong>不做隐式转换，只有当 <code>x</code> 本身是数字类型且值为 <code>NaN</code> 时才返回 <code>true</code>。如果审阅数值输入边界，更常见也更安全的做法是直接用 <code>Number.isFinite(x)</code>，一次性排除非数字、<code>NaN</code> 以及 <code>Infinity</code>。<a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Number/isNaN">[MDN: Number.isNaN]</a></li>
+</ul>
+
+<div class="callout"><strong>业界分歧（<code>x == null</code> 例外）：</strong>在所有 <code>==</code> 的用法里，只有 <code>x == null</code>（与 <code>x != null</code>）在 JS/TS 社区存在明确分歧。因为规范里 <code>null</code> 和 <code>undefined</code> 彼此宽松相等且不等于其他任何值，所以 <code>x == null</code> 恰好等价于 <code>x === null || x === undefined</code>。一派团队（包括不少知名开源库）认为它简短清晰且 TypeScript 编译器也原生支持它做类型收窄；另一派团队通过 ESLint <code>eqeqeq</code> 规则全仓禁用 <code>==</code>，要求显式写出 <code>x === null || x === undefined</code> 或改用 <code>??</code>，避免团队成员误把 <code>==</code> 用到其他类型上。审阅时以项目既有规范为准，不要在同一仓库里混用两种风格。</div>
+
+<h2>三、方法论：审阅 JS 条件与表达式的三条规则</h2>
+<p>结合第 0 阶段建立的审阅习惯，把今天这课的运行时机制压缩成三条可直接复用的检查动作。</p>
+
+<div class="principle">
+  <span class="principle-label">方法论原则 7 · Nullish Over Falsy</span>
+  <p class="principle-title">默认值认准 <code>??</code>，见到 <code>||</code> 先拷问 <code>0</code>、<code>""</code> 和 <code>false</code></p>
+  <p>AI 写默认值时经常习惯性冒出 <code>a || fallback</code>。只要字段可能是数字、字符串或布尔值，<code>||</code> 就会把合法的边界值静默覆盖掉，且编译器不会报任何错误。</p>
+  <p><strong>审阅动作：</strong>在代码里扫到 <code>||</code> 赋默认值，立刻套三个测试值心算一遍：如果左侧是 <code>0</code>、<code>""</code> 或 <code>false</code>，业务上到底应该保留它还是回退到默认值？只要应该保留，立刻要求 AI 把 <code>||</code> 改成 <code>??</code>；如果扫到 <code>if (arr)</code> 判断数组或对象是否为空，要求改为 <code>arr.length &gt; 0</code>。</p>
+</div>
+
+<div class="principle">
+  <span class="principle-label">方法论原则 8 · Strict Equality, Safe NaN</span>
+  <p class="principle-title">判等一律要求 <code>===</code>，数值边界认准 <code>Number.isFinite</code> / <code>Number.isNaN</code></p>
+  <p>TS 的静态类型检查在变量已知为不同类型时会拦截部分 <code>==</code>，但一旦遇到 <code>any</code>、<code>unknown</code> 或外部运行时脏数据，<code>==</code> 就会悄悄触发隐式转换（比如 <code>"" == 0</code> 变成 <code>true</code>）。</p>
+  <p><strong>审阅动作：</strong>看到 <code>==</code> 或 <code>!=</code>，除非项目明确约定允许 <code>x == null</code>，否则一律要求改为 <code>===</code> / <code>!==</code>；看到全局 <code>isNaN(x)</code> 或 <code>x === NaN</code>，要求改为显式转换加 <code>Number.isNaN(n)</code> 或直接用 <code>Number.isFinite(n)</code>。</p>
+</div>
+
+<div class="principle">
+  <span class="principle-label">方法论原则 9 · Read Expressions by Return Value</span>
+  <p class="principle-title">按"返回哪一侧操作数"读逻辑表达式，并盯紧 <code>undefined</code> 与 <code>null</code> 的序列化差异</p>
+  <p>不要用 C#"逻辑运算返回布尔值"的直觉去读 JS 的 <code>&amp;&amp;</code> / <code>||</code> / <code>?.</code>。同时在对接外部 JSON API 时，始终记得 <code>undefined</code> 会被 <code>JSON.stringify</code> 静默丢弃，而 <code>null</code> 会被保留。</p>
+  <p><strong>审阅动作：</strong>读到链式写法（如 <code>a?.b?.[0] ?? c</code> 或 <code>flag &amp;&amp; expr</code>），逐段翻译成"左侧是空/假时返回什么，否则返回什么"；审阅 PATCH/更新类请求体时，专门确认需要清空的字段传入的是 <code>null</code> 还是不小心传了 <code>undefined</code>。</p>
+</div>
+
+<h2>四、实战演练：审阅一段 AI 写的查询与折扣处理代码</h2>
+<p>假设你让 AI 写一个解析查询参数并构造更新请求的函数。AI 提交了下面这段代码，且 <code>tsc --noEmit</code> 竟然通过了（零报错），因为这些全是运行时逻辑陷阱：</p>
+
+<div class="review-case">
+  <p class="review-case-head">待审阅的 AI 交付物</p>
+  <div class="code-block" data-lines data-error-line="11,15,16,18,23,31">
+    <div class="code-head"><span class="code-label">query-helper.ts</span></div>
+    <pre><code>interface QueryInput {
+  page?: number;
+  discount?: number;
+  tags?: string[];
+  total: number;
+  count: number;
+  clearNote?: boolean;
+}
+
+function normalizeQuery(input: QueryInput | null) {
+  if (typeof input !== "object") {
+    throw new Error("输入必须是对象");
+  }
+
+  const page = input?.page || 1;
+  const discount = input?.discount || 10;
+
+  if (input?.tags) {
+    console.log("按标签过滤:", input.tags.join(","));
+  }
+
+  const avg = (input?.total ?? 0) / (input?.count ?? 0);
+  if (Number.isNaN(avg)) {
+    throw new Error("平均值非法");
+  }
+
+  return JSON.stringify({
+    page,
+    discount,
+    avg,
+    note: input?.clearNote ? undefined : "keep",
+  });
+}</code></pre>
+  </div>
+
+  <p><strong>按本课三条原则逐行拆解（全部可以通过 <code>tsc --noEmit</code>，但运行时都会出问题）：</strong></p>
+  <ol>
+    <li><strong>第 11 行（<code>typeof null</code> 陷阱）：</strong>函数接受 <code>QueryInput | null</code>，但 <code>typeof null === "object"</code>，所以传入 <code>null</code> 时不会抛错。正因为没拦住 <code>null</code>，AI 才不得不在后面到处加 <code>input?.</code>（用第 2 课的悬停检查第 15 行的 <code>input</code>，你会发现它依然是 <code>QueryInput | null</code>）。正确写法必须改为 <code>if (typeof input !== "object" || input === null)</code>。</li>
+    <li><strong>第 15、16 行（原则 7）：</strong><code>input?.page || 1</code> 和 <code>input?.discount || 10</code> 用了 <code>||</code>。如果业务允许第 <code>0</code> 页或 <code>0</code> 折扣，<code>0</code> 会被当成假值静默覆盖成 <code>1</code> 和 <code>10</code>，必须改为 <code>??</code>。</li>
+    <li><strong>第 18 行（原则 7）：</strong><code>if (input?.tags)</code> 想判断"有没有传过滤标签"，但如果调用方传了空数组 <code>[]</code>，空数组是真值，分支照样执行并打印空字符串。应改为检查 <code>(input.tags?.length ?? 0) &gt; 0</code>。</li>
+    <li><strong>第 23 行（原则 8）：</strong>当 <code>total</code> 为 <code>100</code>、<code>count</code> 为 <code>0</code> 时，除法结果是 <code>Infinity</code> 而非 <code>NaN</code>，<code>Number.isNaN(Infinity)</code> 返回 <code>false</code>，导致校验被绕过（且 <code>JSON.stringify</code> 会把 <code>Infinity</code> 静默序列化成 <code>null</code>）。应改为 <code>!Number.isFinite(avg)</code>。</li>
+    <li><strong>第 31 行（原则 9）：</strong>当 <code>clearNote</code> 为 <code>true</code> 时，代码给 <code>note</code> 赋了 <code>undefined</code>。经过 <code>JSON.stringify</code> 后 <code>note</code> 键会直接从 JSON 里消失，后端收不到清空意图。明确表达"清空字段"应赋值为 <code>null</code>。</li>
+  </ol>
+
+  <div class="review-prompt">
+    "这段代码虽然过了 <code>tsc --noEmit</code>，但存在五处 JS 运行时逻辑问题，请一并修改：① 第 11 行补上 <code>input === null</code>，真正拦住 <code>null</code> 并去掉后续多余的 <code>input?.</code>；② 第 15、16 行的默认值改用 <code>??</code>，避免合法的 <code>0</code> 被 <code>||</code> 覆盖；③ 第 18 行改为检查 <code>(input.tags?.length ?? 0) &gt; 0</code>，不要把空数组 <code>[]</code> 当成有过滤条件；④ 第 23 行改为 <code>!Number.isFinite(avg)</code>，同时拦住 <code>NaN</code> 和除以零产生的 <code>Infinity</code>；⑤ 第 31 行清空备注时把 <code>undefined</code> 改为 <code>null</code>，避免 <code>JSON.stringify</code> 丢弃该字段。"
+  </div>
+</div>
+
+<h2>五、检验一下</h2>
+<p class="small muted">本课自测（接续开头的 2 道热身题，全页共 8 题）。每题只能选一次，凭理解作答，不要往上翻。</p>
+
+<div class="quiz" data-answer="2">
+  <p class="q">AI 写了 <code>const timeout = cfg.timeout || 3000;</code> 来给超时时间设默认值。当用户明确传入 <code>timeout: 0</code>（表示不限时）时，运行时会发生什么？</p>
+  <ol class="options">
+    <li>保留零值，逻辑或只在空值与未定义时回退</li>
+    <li>抛出异常，逻辑或要求左侧必须是布尔类型</li>
+    <li>变成三千，数字零属于假值会被右侧值覆盖</li>
+    <li>返回假值，逻辑或的运算结果固定是布尔值</li>
+  </ol>
+  <div class="explain"><code>||</code> 按真假值判断，数字 <code>0</code> 是 8 个假值之一，因此 <code>0 || 3000</code> 会静默返回 <code>3000</code>。给数字、字符串或布尔字段设默认值必须用空值合并运算符 <code>??</code>。</div>
+</div>
+
+<div class="quiz" data-answer="0">
+  <p class="q">审阅代码时看到 <code>if (items) { process(items); }</code>，其中 <code>items</code> 是接口返回的数组。当接口返回空数组 <code>[]</code> 时，这段逻辑会怎么走？</p>
+  <ol class="options">
+    <li>仍会进入分支，空数组在条件里属于真值</li>
+    <li>会跳过该分支，空数组在条件里属于假值</li>
+    <li>编译阶段报错，条件表达式只接受布尔值</li>
+    <li>运行阶段报错，数组无法隐式转成布尔值</li>
+  </ol>
+  <div class="explain">JavaScript 中只有 8 个假值（<code>false</code>、<code>0</code>、<code>-0</code>、<code>0n</code>、<code>""</code>、<code>null</code>、<code>undefined</code>、<code>NaN</code>）。空数组 <code>[]</code> 和空对象 <code>{}</code> 都属于对象引用，转布尔值恒为 <code>true</code>。判断数组非空应检查 <code>items.length &gt; 0</code>。</div>
+</div>
+
+<div class="quiz" data-answer="1">
+  <p class="q">下面哪段表达式在 <code>user</code> 为 <code>null</code> 时能安全回退到 <code>"匿名"</code>，同时在 <code>user.name</code> 为空字符串 <code>""</code> 时保留空字符串？</p>
+  <ol class="options">
+    <li><code>user?.name || "匿名"</code></li>
+    <li><code>user?.name ?? "匿名"</code></li>
+    <li><code>user.name ?? "匿名"</code></li>
+    <li><code>user?.name &amp;&amp; "匿名"</code></li>
+  </ol>
+  <div class="explain"><code>user?.name</code> 在 <code>user</code> 为 <code>null</code> 时安全短路为 <code>undefined</code>，再由 <code>??</code> 回退到 <code>"匿名"</code>；当 <code>user.name</code> 是 <code>""</code> 时，它既不是 <code>null</code> 也不是 <code>undefined</code>，所以 <code>??</code> 会完整保留 <code>""</code>。</div>
+</div>
+
+<div class="quiz" data-answer="3">
+  <p class="q">审阅 AI 写的条件判断 <code>if (code == 0)</code>，如果外部输入 <code>code</code> 意外传入了空字符串 <code>""</code>，运行时结果是什么？</p>
+  <ol class="options">
+    <li>条件为假，宽松相等会先校验两侧类型是否一致</li>
+    <li>运行报错，不同类型的值禁止参与宽松相等比较</li>
+    <li>条件为假，空字符串只与未定义和空值宽松相等</li>
+    <li>条件为真，宽松相等会把空字符串隐式转成数字</li>
+  </ol>
+  <div class="explain"><code>==</code>（宽松相等）在比较字符串与数字时，会把字符串隐式转换为数字，空字符串 <code>""</code> 转为 <code>0</code>，导致 <code>"" == 0</code> 为 <code>true</code>。审阅时应统一要求使用严格相等 <code>===</code>。</div>
+</div>
+
+<div class="quiz" data-answer="0">
+  <p class="q">AI 用 <code>if (isNaN(input))</code> 检查外部输入是否为非法数字。为什么审阅时通常建议改用 <code>Number.isNaN</code> 或 <code>Number.isFinite</code>？</p>
+  <ol class="options">
+    <li>全局版本会先强转数字，非数字字符串易引发误判</li>
+    <li>全局版本无法识别非数，遇到浮点溢出恒返回假值</li>
+    <li>全局版本仅限浏览器端，在服务端运行会抛出异常</li>
+    <li>全局版本会改写原变量，导致后续的数值计算出错</li>
+  </ol>
+  <div class="explain">全局 <code>isNaN(x)</code> 会先对参数做隐式数字转换：<code>isNaN("abc")</code> 返回 <code>true</code>，而 <code>isNaN("")</code>、<code>isNaN(null)</code> 返回 <code>false</code>。<code>Number.isNaN(x)</code> 不做隐式转换，<code>Number.isFinite(x)</code> 则可同时排除非数字、<code>NaN</code> 与无穷大。</div>
+</div>
+
+<div class="quiz" data-answer="2">
+  <p class="q">后端接口约定字段 <code>discount</code> 传 <code>null</code> 表示"清空折扣"，不传该键表示"保持不变"。AI 组装请求体时写了 <code>{ id: 1, discount: undefined }</code> 并用 <code>JSON.stringify</code> 发送。结果会怎样？</p>
+  <ol class="options">
+    <li>序列化后保留该键，值会被自动转换成空值标记</li>
+    <li>序列化时抛出异常，协议不允许出现未定义字段</li>
+    <li>序列化时丢弃该键，后端会误判成保持原有折扣</li>
+    <li>序列化后保留该键，值会被转换成空字符串发出</li>
+  </ol>
+  <div class="explain"><code>JSON.stringify</code> 会直接忽略值为 <code>undefined</code> 的对象属性，最终发出的只是 <code>{"id":1}</code>。想明确向后端传递空值必须使用 <code>null</code>。</div>
+</div>
+
+<div id="quiz-score"></div>
+
+<h2>六、延伸阅读与下一步</h2>
+<div class="callout source"><a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Guide/Equality_comparisons_and_sameness">MDN：JavaScript 中的相等性判断</a>（中文官方文档，约 10 分钟）。对照今天讲的 <code>==</code>、<code>===</code> 与 <code>Object.is</code> 的底层算法差异。</div>
+<p class="small">如果想把今天几个运算符的边界细节查全，可以顺手翻看 MDN 的 <a href="https://developer.mozilla.org/zh-CN/docs/Glossary/Falsy">Falsy（假值）词条</a>、<a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/Nullish_coalescing_operator">空值合并运算符（??）</a> 与 <a href="https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/Optional_chaining">可选链运算符（?.）</a>。</p>
+
+<p class="small">本课的 C# 对照与审阅清单已同步更新到参考页：<a href="../reference/csharp-to-ts.html">C# → TypeScript 速查</a>。整体进度见 <a href="../reference/roadmap.html">学习路线</a>。</p>
+
+<div class="callout ask">实验里的 6 行输出有哪一行让你意外吗？或者在读过的 AI 代码里见过更绕的 <code>&amp;&amp;</code> / <code>||</code> / <code>??</code> 嵌套写法想一起拆解？直接在对话里发给我。</div>
+
+<nav class="lesson-nav">
+  <span><a href="0002-editor-hover-and-language-service.html">← 上一课：编辑器悬停与语言服务</a></span>
+  <span class="muted">下一课：对象、解构展开与数组链式操作（第 0.5 阶段 · 第 2 课）</span>
+</nav>
+
+</main>
+<aside class="page-toc" aria-label="本页大纲"></aside>
+</div>
+
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
